@@ -33,6 +33,7 @@ coverage.xml
 # --- Tooling / editors ---
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 

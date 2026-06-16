@@ -1,0 +1,81 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "returnguard"
+version = "0.1.0"
+description = "Autonomous Returns-Deflection & Resolution Agent (constrained-autonomy e-commerce post-order resolution)."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Akshat Lakhera" }]
+requires-python = ">=3.11,<3.13"
+
+# Runtime dependencies (pinned to compatible ranges).
+dependencies = [
+    # --- Agent orchestration ---
+    "langgraph>=0.2.60,<0.4",
+    "langchain-core>=0.3.25,<0.4",
+    "langgraph-checkpoint-postgres>=2.0.7,<3",
+    # --- LLM provider (Claude) ---
+    "anthropic>=0.42,<1",
+    # --- Service layer ---
+    "fastapi>=0.115,<0.116",
+    "uvicorn[standard]>=0.34,<0.35",
+    "sse-starlette>=2.1,<3",
+    # --- Data / validation / config ---
+    "pydantic>=2.9,<3",
+    "pydantic-settings>=2.6,<3",
+    "psycopg[binary]>=3.2,<4",
+    "pgvector>=0.3.6,<0.4",
+    # --- Events ---
+    "aiokafka>=0.12,<0.13",
+    # --- MCP tool servers ---
+    "fastmcp>=2.3,<3",
+    # --- Observability ---
+    "langfuse>=2.53,<3",
+    # --- Resilience / utilities ---
+    "tenacity>=9.0,<10",
+    "numpy>=2.1,<3",
+    "pyyaml>=6.0,<7",
+    "httpx>=0.27,<1",
+    "python-dateutil>=2.9,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<10",
+    "pytest-asyncio>=0.24,<1",
+    "ruff>=0.8,<1",
+    "mypy>=1.13,<2",
+]
+
+[project.urls]
+Repository = "https://github.com/akl-akshat/ReturnGuard"
+
+[tool.hatch.build.targets.wheel]
+packages = ["config", "agent", "service", "tools", "mcp_servers", "events", "observability", "policies", "db", "eval"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "unit: pure-logic unit tests (no infra, no LLM)",
+    "integration: needs Postgres/Kafka/graph",
+    "safety: guardrail / injection / idempotency safety invariants",
+    "infra: requires docker-compose backing services",
+]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
