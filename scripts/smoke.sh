@@ -17,6 +17,9 @@ python -c "from config.settings import settings; print('config OK:', settings.AP
 
 # --- Phase 0 baseline ends here. Later phases append capabilities below. ---
 
+say "offline unit + safety suite (no infra)"
+python -m pytest -q -m "unit or safety" -p no:cacheprovider
+
 if [[ "${RG_SMOKE_INFRA:-0}" == "1" ]]; then
   say "infra health (docker compose)"
   docker compose ps
