@@ -92,6 +92,19 @@ class Settings(BaseSettings):
     # --------------------------------------------------------- graph control
     MAX_ITERATIONS: int = 12  # Appendix B: hard graph loop cap (CON-4, NFR-REL-2)
 
+    # ----------------------------------------------------- cost model (§9.1)
+    # Config-driven INR cost parameters for the expected-cost comparison.
+    RETURN_REVERSE_LOGISTICS: float = 80.0   # reverse pickup leg
+    RETURN_RESTOCKING: float = 40.0          # inspection + restocking/handling
+    RETURN_MARGIN_RATE: float = 0.30         # margin as fraction of price
+    RETURN_P_UNSELLABLE: float = 0.25        # Pr(returned item unsellable)
+    RTO_FORWARD_COST: float = 60.0           # forward-leg dead cost for an RTO
+    EXCHANGE_SHIPPING_COST: float = 90.0     # cost of an exchange shipment
+    REPLACEMENT_DELTA_COST: float = 120.0    # expedited replacement delta
+    COUPON_REDEMPTION_RATE: float = 0.70     # expected coupon redemption fraction
+    PARTIAL_REFUND_FRACTION: float = 0.30    # default partial-refund share of value
+    DEFECT_GOODWILL_DEFAULT: float = 100.0   # default goodwill sweetener on a defect
+
     # ----------------------------------------------------------- observability
     TRACING_ENABLED: bool = False  # toggle (D9); off by default for offline runs
     TRACING_PROVIDER: Literal["langfuse", "langsmith", "none"] = "none"
