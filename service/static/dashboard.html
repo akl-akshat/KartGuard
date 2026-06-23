@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ReturnGuard — Operator Console</title>
+<style>
+  :root { --bg:#0f1420; --card:#1a2233; --ink:#e6edf6; --muted:#8aa0bd; --accent:#4f9cff; --good:#33c481; --bad:#ff5d5d; --warn:#f5b945; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:18px 24px; border-bottom:1px solid #243049; display:flex; justify-content:space-between; align-items:center; }
+  header h1 { font-size:18px; margin:0; } header .sub { color:var(--muted); font-size:13px; }
+  main { padding:24px; max-width:1100px; margin:0 auto; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:26px; }
+  .card { background:var(--card); border:1px solid #243049; border-radius:12px; padding:16px; }
+  .card .k { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+  .card .v { font-size:26px; font-weight:700; margin-top:6px; }
+  .card .v.good { color:var(--good); } .card .v.bad { color:var(--bad); }
+  h2 { font-size:15px; color:var(--muted); margin:24px 0 10px; text-transform:uppercase; letter-spacing:.5px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border-radius:12px; overflow:hidden; }
+  th,td { text-align:left; padding:10px 12px; border-bottom:1px solid #243049; font-size:13px; }
+  th { color:var(--muted); font-weight:600; }
+  .pill { padding:2px 8px; border-radius:999px; font-size:11px; background:#22304a; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:6px 11px; cursor:pointer; font-size:12px; }
+  button.ghost { background:#22304a; } button.danger { background:var(--bad); }
+  .row-actions { display:flex; gap:6px; }
+  .empty { color:var(--muted); padding:14px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>ReturnGuard</h1><div class="sub">Autonomous Returns-Deflection — Operator Console</div></div>
+  <button class="ghost" onclick="refresh()">↻ Refresh</button>
+</header>
+<main>
+  <div class="cards" id="cards"></div>
+  <h2>Pending escalations</h2>
+  <table id="esc"><thead><tr><th>Request</th><th>Recommendation</th><th>Risk</th><th>Decision</th></tr></thead><tbody></tbody></table>
+  <h2>Recent resolutions</h2>
+  <table id="res"><thead><tr><th>Request</th><th>Issue</th><th>Root cause</th><th>Action</th><th>Status</th></tr></thead><tbody></tbody></table>
+</main>
+<script>
+const api = (p, opts) => fetch(p, opts).then(r => r.json());
+
+function card(k, v, cls="") { return `<div class="card"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`; }
+
+async function loadMetrics() {
+  const m = await api('/metrics/summary');
+  const pct = x => (x*100).toFixed(1) + '%';
+  document.getElementById('cards').innerHTML = [
+    card('Total resolutions', m.total_resolutions),
+    card('Auto-resolution', pct(m.auto_resolution_rate), 'good'),
+    card('Escalation rate', pct(m.escalation_rate)),
+    card('Deflection rate', pct(m.deflection_rate), 'good'),
+    card('INR saved', '₹' + m.estimated_inr_saved_vs_always_refund),
+    card('Guardrail violations', m.guardrail_violation_count, m.guardrail_violation_count===0?'good':'bad'),
+  ].join('');
+}
+
+async function loadEscalations() {
+  const rows = await api('/escalations');
+  const tb = document.querySelector('#esc tbody');
+  if (!rows.length) { tb.innerHTML = `<tr><td colspan=4 class=empty>No pending escalations 🎉</td></tr>`; return; }
+  tb.innerHTML = rows.map(e => {
+    const rec = e.recommendation || {}; const pa = rec.proposed_action || {};
+    return `<tr>
+      <td>${e.request_id}</td>
+      <td><span class="pill">${pa.action_type||'—'}</span> ${rec.rationale ? rec.rationale.slice(0,60) : ''}</td>
+      <td>${rec.risk_score ?? '—'}</td>
+      <td class="row-actions">
+        <button onclick="decide('${e.request_id}','approve')">Approve</button>
+        <button class="ghost" onclick="decideModify('${e.request_id}')">Modify</button>
+        <button class="danger" onclick="decide('${e.request_id}','reject')">Reject</button>
+      </td></tr>`;
+  }).join('');
+}
+
+async function loadResolutions() {
+  const rows = await api('/resolutions?limit=15');
+  const tb = document.querySelector('#res tbody');
+  tb.innerHTML = rows.length ? rows.map(r => `<tr>
+    <td><a href="/resolutions/${r.request_id}" target="_blank">${r.request_id}</a></td>
+    <td>${r.issue_type||'—'}</td><td>${r.root_cause||'—'}</td>
+    <td><span class="pill">${r.action_type||'—'}</span></td>
+    <td>${r.status}</td></tr>`).join('') : `<tr><td colspan=5 class=empty>No resolutions yet</td></tr>`;
+}
+
+async function decide(id, decision, modified_action=null) {
+  await api(`/escalations/${id}/decision`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ decision, reviewer_id:'console-op', modified_action })
+  });
+  refresh();
+}
+function decideModify(id) {
+  const at = prompt('Modified action_type (e.g. partial_refund):'); if (!at) return;
+  const amt = parseFloat(prompt('Amount (INR):','0')) || 0;
+  decide(id, 'modify', { action_type: at, amount: amt, params:{} });
+}
+function refresh() { loadMetrics(); loadEscalations(); loadResolutions(); }
+refresh(); setInterval(refresh, 8000);
+</script>
+</body>
+</html>
