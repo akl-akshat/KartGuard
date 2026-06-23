@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
@@ -27,8 +28,17 @@ def resolve(req: ResolveRequest, request: Request) -> ResolveResponse:
 
     cfg = run_config(req.request_id)
     state = initial_state(req.request_id, req.issue_text, req.channel, req.order_id, req.customer_id)
+    t0 = time.perf_counter()
     out = graph.invoke(state, cfg)
-    return summarize(out, paused=is_paused(graph, cfg))
+    paused = is_paused(graph, cfg)
+
+    # Record latency on the persisted resolution for the analytics summary (FR-RPT-1).
+    if not paused:
+        row = repo.get_resolution(req.request_id)
+        if row is not None:
+            row["latency_ms"] = round((time.perf_counter() - t0) * 1000, 2)
+            repo.save_resolution(row)
+    return summarize(out, paused=paused)
 
 
 @router.post("/resolve/stream")
