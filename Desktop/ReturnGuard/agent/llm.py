@@ -45,6 +45,12 @@ class LLMClient:
 
     # ------------------------------------------------------------- triage
     def triage(self, raw_request: str, order_id: str | None, customer_id: str | None) -> TriageOut:
+        from observability.tracing import get_tracer
+
+        with get_tracer().span("llm.triage"):
+            return self._triage(raw_request, order_id, customer_id)
+
+    def _triage(self, raw_request: str, order_id: str | None, customer_id: str | None) -> TriageOut:
         if self.provider == "stub":
             issue = stub_brain.classify_issue(raw_request)
             ext_o, ext_c = stub_brain.extract_ids(raw_request)
@@ -74,6 +80,13 @@ class LLMClient:
     # ----------------------------------------------------------- diagnose
     def diagnose(self, raw_request: str, issue_type: str, order_context: dict | None,
                  customer_context: dict | None, risk_score: float | None) -> DiagnoseOut:
+        from observability.tracing import get_tracer
+
+        with get_tracer().span("llm.diagnose"):
+            return self._diagnose(raw_request, issue_type, order_context, customer_context, risk_score)
+
+    def _diagnose(self, raw_request: str, issue_type: str, order_context: dict | None,
+                  customer_context: dict | None, risk_score: float | None) -> DiagnoseOut:
         if self.provider == "stub":
             rc = stub_brain.diagnose(issue_type, raw_request, risk_score)
             return DiagnoseOut(root_cause=rc, rationale=f"stub: issue={issue_type}")

@@ -16,6 +16,7 @@ from typing import Any, Mapping
 from config.settings import settings
 from db.repository import Repository
 from events.emit import emit_event
+from observability.tracing import get_tracer
 
 # Action types that move (simulated) money — the idempotency-critical set.
 FINANCIAL_ACTIONS = {
@@ -51,8 +52,9 @@ def _audited(
         "customer_id": customer_id,
         "payload": payload,
     }
-    repo.append_audit(entry)
-    emit_event(settings.TOPIC_AUDIT, request_id, entry)
+    with get_tracer().span(f"tool.{action_type}", request_id=request_id, amount=amount):
+        repo.append_audit(entry)
+        emit_event(settings.TOPIC_AUDIT, request_id, entry)
     audit_id = repo.get_audit(request_id, action_type)[0].get("id")
     return {
         "status": "applied",

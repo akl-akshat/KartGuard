@@ -31,6 +31,7 @@ from agent.nodes import (
 )
 from agent.state import ResolutionState
 from config.settings import settings
+from observability.instrument import instrument
 
 
 # ------------------------------------------------------------------ routers
@@ -65,17 +66,15 @@ def route_after_hitl(state: ResolutionState) -> str:
 def build_graph(checkpointer: Any | None = None, interrupt_before_hitl: bool = False):
     """Compile the resolution graph. ``interrupt_before_hitl`` pauses at HITL (Phase 7)."""
     g = StateGraph(ResolutionState)
-    g.add_node("triage", triage.triage)
-    g.add_node("context", context.context)
-    g.add_node("policy", policy.policy)
-    g.add_node("risk", risk.risk)
-    g.add_node("diagnosis", diagnosis.diagnosis)
-    g.add_node("planner", planner.planner)
-    g.add_node("guardrails", guardrails.guardrails)
-    g.add_node("hitl", hitl.hitl)
-    g.add_node("executor", executor.executor)
-    g.add_node("responder", responder.responder)
-    g.add_node("logger", logger.logger)
+    # Every node is instrumented: one trace span + one structured log line per node.
+    nodes = {
+        "triage": triage.triage, "context": context.context, "policy": policy.policy,
+        "risk": risk.risk, "diagnosis": diagnosis.diagnosis, "planner": planner.planner,
+        "guardrails": guardrails.guardrails, "hitl": hitl.hitl, "executor": executor.executor,
+        "responder": responder.responder, "logger": logger.logger,
+    }
+    for name, fn in nodes.items():
+        g.add_node(name, instrument(name, fn))
 
     g.add_edge(START, "triage")
     g.add_conditional_edges("triage", route_after_triage, {"triage": "triage", "context": "context"})
