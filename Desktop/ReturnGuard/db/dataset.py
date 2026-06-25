@@ -326,15 +326,52 @@ def _named_fixtures() -> tuple[list[Customer], list[Order]]:
     return customers, orders
 
 
+def _eval_fixtures() -> list[Order]:
+    """Curated orders (stable ids) the eval dataset pairs with scenario texts.
+
+    Values are kept under MAX_AUTO_REFUND_ABS except the designated high-value cases, so
+    escalation is driven by the labelled dimension (risk / value) rather than incidentally.
+    """
+    inw = REFERENCE_DATE + timedelta(days=4)
+    out = REFERENCE_DATE - timedelta(days=12)
+    deliv_in = REFERENCE_DATE - timedelta(days=2)
+    deliv_out = REFERENCE_DATE - timedelta(days=20)
+
+    def mk(oid, cust, cat, price, pm, window_end, deliv):
+        order_date = deliv - timedelta(days=3)
+        return Order(oid, cust, "SELLER001", f"SKU-{cat[:3].upper()}-{oid}", f"{cat.title()} item",
+                     cat, price, 1, pm, order_date, order_date + timedelta(days=1), deliv,
+                     "delivered", window_end)
+
+    return [
+        mk("EVO-SIZE-PRE", "CUST-LOW1", "apparel", 1299.0, "PREPAID", inw, deliv_in),
+        mk("EVO-SIZE-COD", "CUST-NEW1", "apparel", 999.0, "COD", inw, deliv_in),
+        mk("EVO-MIND-COD", "CUST-VIP1", "apparel", 899.0, "COD", inw, deliv_in),
+        mk("EVO-CHEAP-PRE", "CUST-VIP1", "apparel", 1199.0, "PREPAID", inw, deliv_in),
+        mk("EVO-DEFECT-COD", "CUST-NEW1", "electronics", 1799.0, "COD", inw, deliv_in),
+        mk("EVO-WRONG-PRE", "CUST-LOW1", "footwear", 1499.0, "PREPAID", inw, deliv_in),
+        mk("EVO-DELAY-COD", "CUST-VIP1", "home", 1150.0, "COD", inw, deliv_in),
+        mk("EVO-EXPECT-PRE", "CUST-LOW1", "apparel", 1099.0, "PREPAID", inw, deliv_in),
+        mk("EVO-OOW-APP-PRE", "CUST-VIP1", "apparel", 1299.0, "PREPAID", out, deliv_out),
+        mk("EVO-NONRET-INNER", "CUST-LOW1", "innerwear", 599.0, "PREPAID", None, deliv_in),
+        mk("EVO-NONRET-GRO", "CUST-NEW1", "grocery", 450.0, "COD", None, deliv_in),
+        mk("EVO-GENUINE-PRE", "CUST-LOW1", "books", 699.0, "PREPAID", inw, deliv_in),
+        mk("EVO-HIVAL-PRE", "CUST-VIP1", "electronics", 4999.0, "PREPAID", inw, deliv_in),
+        mk("EVO-FRAUD-COD", "CUST-SERIAL", "apparel", 1299.0, "COD", inw, deliv_in),
+        mk("EVO-DEFECT-NONRET", "CUST-NEW1", "beauty", 1499.0, "PREPAID", None, deliv_in),
+        mk("EVO-DELAY-PRE", "CUST-LOW1", "electronics", 1299.0, "PREPAID", inw, deliv_in),
+    ]
+
+
 def build_dataset(seed: int = SEED, n_customers: int = 50, n_orders: int = 200) -> Dataset:
-    """Build the full deterministic dataset (named fixtures + random population)."""
+    """Build the full deterministic dataset (named fixtures + eval fixtures + random)."""
     rng = random.Random(seed)
     fixtures_c, fixtures_o = _named_fixtures()
     customers = list(fixtures_c)
     for i in range(1, n_customers + 1):
         customers.append(_make_customer(rng, i))
 
-    orders = list(fixtures_o)
+    orders = list(fixtures_o) + _eval_fixtures()
     random_customers = customers[len(fixtures_c):]
     for i in range(1, n_orders + 1):
         cust = rng.choice(random_customers)

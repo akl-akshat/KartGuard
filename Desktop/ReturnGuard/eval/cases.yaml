@@ -1,0 +1,379 @@
+- id: c01
+  scenario_text: The item is too tight and doesn't fit me at all.
+  seeded_order_id: EVO-SIZE-PRE
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: size_fit_mismatch
+  expected_action: &id001
+  - exchange_with_size_guide
+  - free_exchange
+  - partial_refund
+  - instant_refund
+  expected_escalation: false
+  notes: apparel prepaid in-window
+- id: c02
+  scenario_text: The item is too tight and doesn't fit me at all.
+  seeded_order_id: EVO-SIZE-COD
+  seeded_customer_id: CUST-NEW1
+  expected_root_cause: size_fit_mismatch
+  expected_action: *id001
+  expected_escalation: false
+  notes: apparel COD in-window
+- id: c03
+  scenario_text: The item is too tight and doesn't fit me at all.
+  seeded_order_id: ORD-FIT-PREPAID
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: size_fit_mismatch
+  expected_action: *id001
+  expected_escalation: false
+  notes: A.1 fixture
+- id: c04
+  scenario_text: The item is too tight and doesn't fit me at all.
+  seeded_order_id: EVO-OOW-APP-PRE
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: size_fit_mismatch
+  expected_action: &id003
+  - deny_with_explanation
+  - provide_information
+  expected_escalation: false
+  notes: size, out-of-window -> deny
+- id: c05
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: EVO-MIND-COD
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: changed_mind
+  expected_action: &id002
+  - retention_coupon
+  - instant_refund
+  expected_escalation: false
+  notes: COD in-window coupon
+- id: c06
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: ORD-MIND-PREPAID
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: changed_mind
+  expected_action: *id002
+  expected_escalation: false
+  notes: A fixture
+- id: c07
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: EVO-OOW-APP-PRE
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: changed_mind
+  expected_action: *id003
+  expected_escalation: false
+  notes: changed-mind out-of-window -> deny
+- id: c08
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: EVO-NONRET-INNER
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: changed_mind
+  expected_action: *id003
+  expected_escalation: false
+  notes: non-returnable innerwear -> deny
+- id: c09
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: EVO-NONRET-GRO
+  seeded_customer_id: CUST-NEW1
+  expected_root_cause: changed_mind
+  expected_action: *id003
+  expected_escalation: false
+  notes: non-returnable grocery -> deny
+- id: c10
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: ORD-OOW-NONRET
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: changed_mind
+  expected_action: *id003
+  expected_escalation: false
+  notes: A.4 out-of-window non-returnable
+- id: c11
+  scenario_text: I found this cheaper on another website, can I return it for a refund.
+  seeded_order_id: EVO-CHEAP-PRE
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: found_cheaper
+  expected_action: &id004
+  - retention_coupon
+  - instant_refund
+  expected_escalation: false
+  notes: price-aware coupon
+- id: c12
+  scenario_text: I found this cheaper on another website, can I return it for a refund.
+  seeded_order_id: EVO-SIZE-COD
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: found_cheaper
+  expected_action: *id004
+  expected_escalation: false
+  notes: found cheaper COD
+- id: c13
+  scenario_text: The product arrived defective and is completely broken.
+  seeded_order_id: EVO-DEFECT-COD
+  seeded_customer_id: CUST-NEW1
+  expected_root_cause: defect_damage
+  expected_action: &id005
+  - expedited_replacement
+  - instant_refund
+  expected_escalation: false
+  notes: electronics COD defect
+- id: c14
+  scenario_text: The product arrived defective and is completely broken.
+  seeded_order_id: ORD-DEFECT-ELEC
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: defect_damage
+  expected_action: *id005
+  expected_escalation: false
+  notes: A.2 fixture
+- id: c15
+  scenario_text: The product arrived defective and is completely broken.
+  seeded_order_id: EVO-DEFECT-NONRET
+  seeded_customer_id: CUST-NEW1
+  expected_root_cause: defect_damage
+  expected_action: *id005
+  expected_escalation: false
+  notes: defect overrides non-returnable
+- id: c16
+  scenario_text: The product arrived defective and is completely broken.
+  seeded_order_id: EVO-HIVAL-PRE
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: defect_damage
+  expected_action: *id005
+  expected_escalation: false
+  notes: high-value defect -> replacement, no escalation
+- id: c17
+  scenario_text: "You sent the wrong item \u2014 this is not what I ordered."
+  seeded_order_id: EVO-WRONG-PRE
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: wrong_item_shipped
+  expected_action: &id006
+  - expedited_replacement
+  - instant_refund
+  expected_escalation: false
+  notes: footwear wrong item
+- id: c18
+  scenario_text: "You sent the wrong item \u2014 this is not what I ordered."
+  seeded_order_id: ORD-WRONG-COD
+  seeded_customer_id: CUST-NEW1
+  expected_root_cause: wrong_item_shipped
+  expected_action: *id006
+  expected_escalation: false
+  notes: A fixture wrong item
+- id: c19
+  scenario_text: My order is very late and still has not been delivered.
+  seeded_order_id: EVO-DELAY-COD
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: delivery_delay
+  expected_action: &id007
+  - provide_information
+  - goodwill_credit
+  - partial_refund
+  expected_escalation: false
+  notes: home COD delay
+- id: c20
+  scenario_text: My order is very late and still has not been delivered.
+  seeded_order_id: EVO-DELAY-PRE
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: delivery_delay
+  expected_action: *id007
+  expected_escalation: false
+  notes: electronics prepaid delay
+- id: c21
+  scenario_text: My order is very late and still has not been delivered.
+  seeded_order_id: ORD-LATE-PREPAID
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: delivery_delay
+  expected_action: *id007
+  expected_escalation: false
+  notes: A fixture late
+- id: c22
+  scenario_text: The quality is poor and the product is not as described.
+  seeded_order_id: EVO-EXPECT-PRE
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: expectation_mismatch
+  expected_action: &id008
+  - exchange_with_size_guide
+  - goodwill_credit
+  - instant_refund
+  - provide_information
+  expected_escalation: false
+  notes: quality complaint apparel
+- id: c23
+  scenario_text: The quality is poor and the product is not as described.
+  seeded_order_id: EVO-SIZE-PRE
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: expectation_mismatch
+  expected_action: *id008
+  expected_escalation: false
+  notes: quality complaint reuse
+- id: c24
+  scenario_text: I have an issue with my order and would like some help.
+  seeded_order_id: EVO-GENUINE-PRE
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: genuine_other
+  expected_action: &id009
+  - instant_refund
+  - provide_information
+  - escalate_to_human
+  expected_escalation: false
+  notes: books generic issue
+- id: c25
+  scenario_text: I have an issue with my order and would like some help.
+  seeded_order_id: EVO-DELAY-PRE
+  seeded_customer_id: CUST-NEW1
+  expected_root_cause: genuine_other
+  expected_action: *id009
+  expected_escalation: false
+  notes: generic issue electronics
+- id: c26
+  scenario_text: I found this cheaper on another website, can I return it for a refund.
+  seeded_order_id: EVO-NONRET-INNER
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: found_cheaper
+  expected_action: *id003
+  expected_escalation: false
+  notes: non-returnable found cheaper -> deny
+- id: c27
+  scenario_text: I found this cheaper on another website, can I return it for a refund.
+  seeded_order_id: EVO-OOW-APP-PRE
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: found_cheaper
+  expected_action: *id003
+  expected_escalation: false
+  notes: out-of-window found cheaper -> deny
+- id: c28
+  scenario_text: The product arrived defective and is completely broken.
+  seeded_order_id: EVO-OOW-APP-PRE
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: defect_damage
+  expected_action: *id005
+  expected_escalation: false
+  notes: defect overrides out-of-window
+- id: c29
+  scenario_text: The product arrived defective and is completely broken.
+  seeded_order_id: EVO-NONRET-GRO
+  seeded_customer_id: CUST-NEW1
+  expected_root_cause: defect_damage
+  expected_action: *id005
+  expected_escalation: false
+  notes: defect overrides non-returnable grocery
+- id: c30
+  scenario_text: I want to return this order for a refund.
+  seeded_order_id: EVO-FRAUD-COD
+  seeded_customer_id: CUST-SERIAL
+  expected_root_cause: fraud_suspected
+  expected_action: &id010
+  - escalate_to_human
+  - instant_refund
+  - deny_with_explanation
+  expected_escalation: true
+  notes: serial returner -> escalate
+- id: c31
+  scenario_text: I want to return this order for a refund.
+  seeded_order_id: ORD-HIVAL-COD
+  seeded_customer_id: CUST-SERIAL
+  expected_root_cause: fraud_suspected
+  expected_action: *id010
+  expected_escalation: true
+  notes: A.3 high-value serial COD
+- id: c32
+  scenario_text: I have an issue with my order and would like some help.
+  seeded_order_id: EVO-FRAUD-COD
+  seeded_customer_id: CUST-SERIAL
+  expected_root_cause: fraud_suspected
+  expected_action: *id010
+  expected_escalation: true
+  notes: serial returner generic -> escalate
+- id: c33
+  scenario_text: I have an issue with my order and would like some help.
+  seeded_order_id: EVO-HIVAL-PRE
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: genuine_other
+  expected_action: *id010
+  expected_escalation: true
+  notes: high-value refund over ceiling -> escalate
+- id: c34
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: EVO-HIVAL-PRE
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: changed_mind
+  expected_action: *id002
+  expected_escalation: false
+  notes: high-value discretionary -> capped coupon, no big refund
+- id: c35
+  scenario_text: I found this cheaper on another website, can I return it for a refund.
+  seeded_order_id: EVO-FRAUD-COD
+  seeded_customer_id: CUST-SERIAL
+  expected_root_cause: found_cheaper
+  expected_action: *id010
+  expected_escalation: true
+  notes: high-risk found-cheaper -> escalate (risk gate)
+- id: c36
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: EVO-SIZE-COD
+  seeded_customer_id: CUST-NEW1
+  expected_root_cause: changed_mind
+  expected_action: *id002
+  expected_escalation: false
+  notes: apparel COD changed mind
+- id: c37
+  scenario_text: The product arrived defective and is completely broken.
+  seeded_order_id: EVO-WRONG-PRE
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: defect_damage
+  expected_action: *id005
+  expected_escalation: false
+  notes: footwear defect
+- id: c38
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: EVO-CHEAP-PRE
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: changed_mind
+  expected_action: *id002
+  expected_escalation: false
+  notes: apparel changed mind prepaid
+- id: c39
+  scenario_text: "You sent the wrong item \u2014 this is not what I ordered."
+  seeded_order_id: EVO-DEFECT-COD
+  seeded_customer_id: CUST-NEW1
+  expected_root_cause: wrong_item_shipped
+  expected_action: *id006
+  expected_escalation: false
+  notes: electronics wrong item
+- id: c40
+  scenario_text: I have an issue with my order and would like some help.
+  seeded_order_id: EVO-DELAY-COD
+  seeded_customer_id: CUST-VIP1
+  expected_root_cause: genuine_other
+  expected_action: *id009
+  expected_escalation: false
+  notes: home generic issue
+- id: c41
+  scenario_text: My order is very late and still has not been delivered.
+  seeded_order_id: EVO-GENUINE-PRE
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: delivery_delay
+  expected_action: *id007
+  expected_escalation: false
+  notes: books delay
+- id: c42
+  scenario_text: The item is too tight and doesn't fit me at all.
+  seeded_order_id: EVO-EXPECT-PRE
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: size_fit_mismatch
+  expected_action: *id001
+  expected_escalation: false
+  notes: apparel size reuse
+- id: c43
+  scenario_text: The product arrived defective and is completely broken.
+  seeded_order_id: EVO-NONRET-INNER
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: defect_damage
+  expected_action: *id005
+  expected_escalation: false
+  notes: innerwear defect remedied
+- id: c44
+  scenario_text: I changed my mind and no longer need this, please take it back.
+  seeded_order_id: ORD-FIT-PREPAID
+  seeded_customer_id: CUST-LOW1
+  expected_root_cause: changed_mind
+  expected_action: *id002
+  expected_escalation: false
+  notes: apparel changed mind fixture
