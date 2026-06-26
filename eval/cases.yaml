@@ -99,7 +99,7 @@
 - id: c12
   scenario_text: I found this cheaper on another website, can I return it for a refund.
   seeded_order_id: EVO-SIZE-COD
-  seeded_customer_id: CUST-VIP1
+  seeded_customer_id: CUST-NEW1
   expected_root_cause: found_cheaper
   expected_action: *id004
   expected_escalation: false
@@ -217,7 +217,7 @@
 - id: c25
   scenario_text: I have an issue with my order and would like some help.
   seeded_order_id: EVO-DELAY-PRE
-  seeded_customer_id: CUST-NEW1
+  seeded_customer_id: CUST-LOW1
   expected_root_cause: genuine_other
   expected_action: *id009
   expected_escalation: false

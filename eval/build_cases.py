@@ -51,7 +51,7 @@ SPECS = [
     ("c10", "ORD-OOW-NONRET", "CUST-VIP1", T_MIND, "changed_mind", A_DENY, False, "A.4 out-of-window non-returnable"),
     # ---- found cheaper ----
     ("c11", "EVO-CHEAP-PRE", "CUST-VIP1", T_CHEAP, "found_cheaper", A_CHEAP_IN, False, "price-aware coupon"),
-    ("c12", "EVO-SIZE-COD", "CUST-VIP1", T_CHEAP, "found_cheaper", A_CHEAP_IN, False, "found cheaper COD"),
+    ("c12", "EVO-SIZE-COD", "CUST-NEW1", T_CHEAP, "found_cheaper", A_CHEAP_IN, False, "found cheaper COD"),
     # ---- defect / damage (satisfaction floor) ----
     ("c13", "EVO-DEFECT-COD", "CUST-NEW1", T_DEFECT, "defect_damage", A_DEFECT, False, "electronics COD defect"),
     ("c14", "ORD-DEFECT-ELEC", "CUST-LOW1", T_DEFECT, "defect_damage", A_DEFECT, False, "A.2 fixture"),
@@ -69,7 +69,7 @@ SPECS = [
     ("c23", "EVO-SIZE-PRE", "CUST-LOW1", T_EXPECT, "expectation_mismatch", A_EXPECT_IN, False, "quality complaint reuse"),
     # ---- genuine other ----
     ("c24", "EVO-GENUINE-PRE", "CUST-LOW1", T_GENUINE, "genuine_other", A_GENUINE_IN, False, "books generic issue"),
-    ("c25", "EVO-DELAY-PRE", "CUST-NEW1", T_GENUINE, "genuine_other", A_GENUINE_IN, False, "generic issue electronics"),
+    ("c25", "EVO-DELAY-PRE", "CUST-LOW1", T_GENUINE, "genuine_other", A_GENUINE_IN, False, "generic issue electronics"),
     # ---- non-returnable / out-of-window denials ----
     ("c26", "EVO-NONRET-INNER", "CUST-LOW1", T_CHEAP, "found_cheaper", A_DENY, False, "non-returnable found cheaper -> deny"),
     ("c27", "EVO-OOW-APP-PRE", "CUST-VIP1", T_CHEAP, "found_cheaper", A_DENY, False, "out-of-window found cheaper -> deny"),
