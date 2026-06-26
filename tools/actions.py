@@ -16,7 +16,6 @@ from typing import Any
 
 from config.settings import settings
 from db.repository import Repository
-from events.emit import emit_event
 from observability.tracing import get_tracer
 
 # Action types that move (simulated) money — the idempotency-critical set.
@@ -35,16 +34,12 @@ def _audited(
     customer_id: str | None,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Append-only audit + event, with (request_id, action_type) idempotency."""
-    existing = repo.get_audit(request_id, action_type)
-    if existing:
-        return {
-            "status": "noop_idempotent",
-            "action_type": action_type,
-            "amount": amount,
-            "audit_id": existing[0].get("id"),
-            "request_id": request_id,
-        }
+    """Atomic audit + outbox write with (request_id, action_type) idempotency (FR-EXE-2/3).
+
+    The audit row and its event are written together via ``record_action`` (one DB tx / one
+    in-memory lock), so a redelivery never double-executes (D-03) and a broker outage never
+    leaves an audit row with a lost event (D-04). Emission is a decoupled, retryable relay.
+    """
     entry = {
         "request_id": request_id,
         "action_type": action_type,
@@ -54,14 +49,24 @@ def _audited(
         "payload": payload,
     }
     with get_tracer().span(f"tool.{action_type}", request_id=request_id, amount=amount):
-        repo.append_audit(entry)
-        emit_event(settings.TOPIC_AUDIT, request_id, entry)
-    audit_id = repo.get_audit(request_id, action_type)[0].get("id")
+        result = repo.record_action(entry, settings.TOPIC_AUDIT, request_id, entry)
+    if not result["applied"]:
+        return {
+            "status": "noop_idempotent",
+            "action_type": action_type,
+            "amount": amount,
+            "audit_id": result["audit_id"],
+            "request_id": request_id,
+        }
+    # Best-effort publish now; if the broker is down the event stays in the outbox (no orphan).
+    from events.emit import relay_outbox
+
+    relay_outbox(repo)
     return {
         "status": "applied",
         "action_type": action_type,
         "amount": amount,
-        "audit_id": audit_id,
+        "audit_id": result["audit_id"],
         "request_id": request_id,
         "payload": payload,
     }
