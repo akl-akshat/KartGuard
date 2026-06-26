@@ -64,6 +64,12 @@ markers = [
     "integration: needs Postgres/Kafka/graph",
     "safety: guardrail / injection / idempotency safety invariants",
     "infra: requires docker-compose backing services",
+    "e2e: full end-to-end decision flows",
+    "concurrency: race / parallel-execution invariants",
+    "failure: fault-injection / degradation invariants",
+    "perf: latency / resource invariants",
+    "property: property-based / fuzz / metamorphic invariants",
+    "slow: long-running tests",
 ]
 asyncio_mode = "auto"
 
