@@ -14,19 +14,36 @@ from agent.state import ResolutionState, ResolutionStatus
 def context(state: ResolutionState) -> dict:
     da = get_deps().data_access
     order_id = state.get("order_id")
-    customer_id = state.get("customer_id")
+    supplied_customer_id = state.get("customer_id")
 
     order = da.get_order(order_id) if order_id else None
-    if order and not customer_id:
-        customer_id = order["customer_id"]
-    customer = da.get_customer(customer_id) if customer_id else None
-
-    if order is None or customer is None:
+    if order is None:
         return {
             "order_context": None,
             "customer_context": None,
-            "customer_id": customer_id,
+            "customer_id": supplied_customer_id,
             "status": ResolutionStatus.not_found.value,
-            "rationale": "Order or customer could not be located.",
+            "rationale": "Order could not be located.",
         }
-    return {"order_context": order, "customer_context": customer, "customer_id": customer_id}
+
+    # D-01: the AUTHORITATIVE customer for risk and policy is the order's true owner — never
+    # the caller-supplied id (customer input is untrusted, NFR-SEC-2). A supplied id that
+    # disagrees is an ownership mismatch: use the true owner AND route to human verification
+    # so an attacker cannot attach a low-risk identity to another customer's order (FR-RSK-1).
+    true_owner = order["customer_id"]
+    customer = da.get_customer(true_owner)
+    if customer is None:
+        return {
+            "order_context": None,
+            "customer_context": None,
+            "customer_id": true_owner,
+            "status": ResolutionStatus.not_found.value,
+            "rationale": "Customer for the order could not be located.",
+        }
+
+    out: dict = {"order_context": order, "customer_context": customer, "customer_id": true_owner}
+    if supplied_customer_id and supplied_customer_id != true_owner:
+        out["requires_human"] = True
+        out["risk_factors"] = ["ownership_mismatch"]
+        out["rationale"] = "Supplied customer does not own this order; routed for verification."
+    return out
