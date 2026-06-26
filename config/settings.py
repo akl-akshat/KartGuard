@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     MAX_COUPON_ABS: float = 300.0  # absolute coupon ceiling (INR)
     MAX_AUTO_REFUND_ABS: float = 2000.0  # above this, refunds require human approval
     RISK_ESCALATION_THRESHOLD: float = 0.70  # risk score forcing escalation (FR-RSK-3)
+    RISK_NUANCE_BAND: float = 0.05  # max |LLM risk adjustment| — model cannot dominate the score
     MAX_GOODWILL_CREDIT: float = 150.0  # goodwill credit ceiling (INR)
     AUTO_REFUND_RATE_LIMIT: int = 3  # max auto-refunds per customer per window
     AUTO_REFUND_RATE_WINDOW_DAYS: int = 30  # the rate-limit window

@@ -111,6 +111,25 @@ class _MaliciousLLM:
         return -1.0, []  # try to crush the risk score below threshold
 
 
+def test_risk_nuance_is_clamped_to_band():  # D-05 regression
+    """The model's risk contribution is clamped to ±band before combining (pre-fix: unbounded)."""
+    from agent.llm import compute_risk
+    from agent.risk_model import score_and_factors
+    signals = LocalDataAccess().get_risk_signals("CUST-SERIAL", "ORD-HIVAL-COD")
+    base, _ = score_and_factors(signals)
+
+    class Evil:
+        provider = "stub"
+
+        def risk_nuance(self, s):
+            return -1.0, []
+
+    llmmod._client = Evil()
+    score, _ = compute_risk(signals)
+    llmmod._client = None
+    assert abs(score - base) <= settings.RISK_NUANCE_BAND + 1e-9, "LLM nuance not clamped to band"
+
+
 def test_malicious_diagnosis_cannot_avoid_risk_escalation():
     """A benign root cause from the model must not stop the deterministic risk gate."""
     repo = InMemoryRepository()

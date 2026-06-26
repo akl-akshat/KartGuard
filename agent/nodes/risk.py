@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from agent.deps import get_deps
 from agent.llm import compute_risk
+from agent.risk_model import score_and_factors
 from agent.state import ResolutionState
 from config.settings import settings
 
@@ -24,5 +25,9 @@ def risk(state: ResolutionState) -> dict:
                 "requires_human": state.get("requires_human", False)}
 
     score, factors = compute_risk(signals)
-    requires_human = state.get("requires_human", False) or score >= settings.RISK_ESCALATION_THRESHOLD
+    # Deterministic escalation FLOOR: the rule score alone forcing escalation cannot be undone
+    # by the (bounded) model nuance (NFR-SAF-2, FR-RSK-3).
+    rule_score, _ = score_and_factors(signals)
+    thr = settings.RISK_ESCALATION_THRESHOLD
+    requires_human = state.get("requires_human", False) or score >= thr or rule_score >= thr
     return {"risk_score": score, "risk_factors": factors, "requires_human": requires_human}

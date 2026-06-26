@@ -150,8 +150,15 @@ def get_llm() -> LLMClient:
 
 
 def compute_risk(signals: dict[str, Any]) -> tuple[float, list[str]]:
-    """Hybrid risk: deterministic rules + (bounded) LLM nuance (FR-RSK-1/2)."""
+    """Hybrid risk: deterministic rules + a BOUNDED LLM nuance (FR-RSK-1/2, NFR-SAF-2).
+
+    The model's contribution is clamped to ±RISK_NUANCE_BAND **before** it is combined, so no
+    LLM output (or a compromised client) can dominate the score. The deterministic rule
+    score remains the escalation floor (enforced in the risk node), so the model alone can
+    never undo a rule-mandated escalation (D-05 / engagement §5.E)."""
     base, factors = score_and_factors(signals)
     adj, extra = get_llm().risk_nuance(signals)
+    band = settings.RISK_NUANCE_BAND
+    adj = max(-band, min(band, float(adj)))  # clamp the model's contribution
     score = max(0.0, min(1.0, round(base + adj, 4)))
     return score, factors + [f for f in extra if f not in factors]
