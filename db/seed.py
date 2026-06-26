@@ -24,7 +24,7 @@ def seed(dsn: str | None = None) -> dict[str, int]:
         # Truncate domain tables (RESTART IDENTITY resets the audit_log sequence).
         conn.execute(
             "TRUNCATE customers, orders, policies, policy_chunks, resolutions, "
-            "audit_log, escalations, eval_cases RESTART IDENTITY CASCADE"
+            "audit_log, escalations, eval_cases, outbox RESTART IDENTITY CASCADE"
         )
         with conn.cursor() as cur:
             cur.executemany(

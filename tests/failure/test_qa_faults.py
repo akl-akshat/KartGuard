@@ -67,20 +67,22 @@ def test_tool_exception_no_partial_effect():
     """FR-EXE-3: a tool failure marks failed with NO partial financial effect."""
     repo = InMemoryRepository()
     order = LocalDataAccess(repo).get_order("ORD-FIT-PREPAID")
-    orig = repo.append_audit
+    orig = repo.record_action
 
-    def boom(entry):
+    def boom(*a, **k):
         raise RuntimeError("DB write failed mid-action")
 
-    repo.append_audit = boom
+    repo.record_action = boom
     with pytest.raises(Exception):
         process_refund(repo, "toolfail", order, 1299.0)
-    repo.append_audit = orig
+    repo.record_action = orig
     assert repo.get_audit("toolfail") == []  # nothing partially written
 
 
 def test_emit_failure_leaves_no_orphan_audit_row():
-    """FR-EXE-3 / AC-6: a broker failure must not leave an audit row with no event (atomicity)."""
+    """FR-EXE-3 / AC-6 (D-04 invariant): a broker failure must leave EITHER nothing OR a
+    committed audit row WITH a pending outbox event that the relay later emits — never an
+    orphan audit with a lost event. Pre-fix this raised and orphaned the audit row."""
     repo = InMemoryRepository()
     order = LocalDataAccess(repo).get_order("ORD-FIT-PREPAID")
 
@@ -88,14 +90,20 @@ def test_emit_failure_leaves_no_orphan_audit_row():
         raise RuntimeError("kafka unavailable")
 
     emitmod.set_emitter(kafka_down)
-    try:
-        process_refund(repo, "emitfail", order, 1299.0)
-    except Exception:
-        pass
+    res = process_refund(repo, "emitfail", order, 1299.0)   # must NOT raise (decoupled emit)
     emitmod.set_emitter(None)
-    assert repo.get_audit("emitfail") == [], (
-        "audit row persisted though event emission failed — partial financial effect / orphan audit"
-    )
+
+    audits = repo.get_audit("emitfail")
+    pending = [o for o in repo.list_pending_outbox() if o["request_id"] == "emitfail"]
+    assert res["status"] == "applied"
+    # every committed audit row has a guaranteed event waiting in the outbox (no orphan)
+    assert len(pending) >= len(audits) >= 1
+
+    # when the broker recovers, the relay publishes the pending event
+    emitmod.drain_sink()
+    emitmod.relay_outbox(repo)
+    assert any(e["key"] == "emitfail" for e in emitmod.drain_sink())
+    assert not [o for o in repo.list_pending_outbox() if o["request_id"] == "emitfail"]
 
 
 def test_malformed_event_dead_lettered_worker_survives():

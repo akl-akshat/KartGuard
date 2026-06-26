@@ -6,6 +6,7 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Drop in dependency order so re-running is clean (DEV/seed convenience).
+DROP TABLE IF EXISTS outbox        CASCADE;
 DROP TABLE IF EXISTS eval_cases    CASCADE;
 DROP TABLE IF EXISTS escalations   CASCADE;
 DROP TABLE IF EXISTS audit_log     CASCADE;
@@ -110,9 +111,30 @@ CREATE TABLE audit_log (
     actor       TEXT NOT NULL,                        -- 'agent' | 'human:<id>'
     payload     JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    -- Atomic idempotency guard (FR-EXE-2, AC-5): at most one financial effect per
+    -- (request_id, action_type), even under concurrent workers. The executor inserts with
+    -- ON CONFLICT DO NOTHING and applies the side effect only if a row was actually inserted.
+    CONSTRAINT uq_audit_request_action UNIQUE (request_id, action_type)
 );
 CREATE INDEX idx_audit_request ON audit_log(request_id);
+
+-- ----------------------------------------------------------------- outbox
+-- Transactional outbox (FR-EXE-3, AC-6): an event is written in the SAME transaction as the
+-- audit/resolution effect; a relay then publishes it to Kafka and marks it sent. This makes
+-- "the effect happened" and "the event will be emitted" atomic — a broker outage can never
+-- leave an audit row with a lost event.
+CREATE TABLE outbox (
+    id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    request_id TEXT NOT NULL,
+    topic      TEXT NOT NULL,
+    msg_key    TEXT NOT NULL,
+    payload    JSONB NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'pending',       -- pending | sent
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    sent_at    TIMESTAMPTZ
+);
+CREATE INDEX idx_outbox_pending ON outbox(status) WHERE status = 'pending';
 
 -- --------------------------------------------------------------- escalations
 CREATE TABLE escalations (

@@ -4,6 +4,7 @@ Sequential idempotency is necessary but NOT sufficient: concurrent identical req
 (two stateless workers, same key) must still produce exactly one financial effect.
 """
 
+import os
 import threading
 from pathlib import Path
 
@@ -54,6 +55,32 @@ def test_audit_log_has_atomic_idempotency_guard():
         "audit_log has no UNIQUE(request_id, action_type) — app-layer read-then-write is "
         "not concurrency-safe; two workers can double-execute (AC-5/FR-EXE-2 race)"
     )
+
+
+@pytest.mark.skipif(not os.environ.get("DATABASE_URL_TEST"),
+                    reason="real Postgres concurrency proof — set DATABASE_URL_TEST and apply db/schema.sql")
+def test_concurrent_identical_request_single_effect_real_db():
+    """End-to-end proof against real Postgres: 32 connections race the same request_id via
+    INSERT ... ON CONFLICT DO NOTHING → exactly one audit row. Run:
+        DATABASE_URL_TEST=postgresql://returnguard:returnguard@localhost:5432/returnguard_test \
+            pytest tests/concurrency -m concurrency
+    """
+    from db.repository import PostgresRepository
+    repo = PostgresRepository(os.environ["DATABASE_URL_TEST"])
+    order = {"id": "O-RACE", "customer_id": "C-RACE", "price": 1299.0, "qty": 1}
+    n = 32
+    barrier = threading.Barrier(n)
+
+    def worker():
+        barrier.wait()
+        process_refund(repo, "race-db-1", order, 1299.0)  # each opens its own connection
+
+    threads = [threading.Thread(target=worker) for _ in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(repo.get_audit("race-db-1", "instant_refund")) == 1
 
 
 def test_distinct_concurrent_requests_no_state_bleed():

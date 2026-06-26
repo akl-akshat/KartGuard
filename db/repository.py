@@ -13,6 +13,7 @@ is how the insert-only invariant (FR-LOG-2, TOOL-1) is enforced at the applicati
 
 from __future__ import annotations
 
+import threading
 from datetime import date, datetime, timedelta
 from typing import Any, Protocol, runtime_checkable
 
@@ -34,8 +35,16 @@ class Repository(Protocol):
 
     # --- audit (append-only) ---
     def append_audit(self, entry: dict[str, Any]) -> None: ...
+    def try_insert_audit(self, entry: dict[str, Any]) -> tuple[bool, Any]: ...
     def get_audit(self, request_id: str, action_type: str | None = None) -> list[dict[str, Any]]: ...
     def count_auto_refunds_since(self, customer_id: str, since: date) -> int: ...
+
+    # --- transactional outbox (guaranteed event emission) ---
+    def record_action(self, audit_entry: dict[str, Any], topic: str, key: str,
+                      payload: dict[str, Any]) -> dict[str, Any]: ...
+    def enqueue_outbox(self, request_id: str, topic: str, key: str, payload: dict[str, Any]) -> None: ...
+    def list_pending_outbox(self) -> list[dict[str, Any]]: ...
+    def mark_outbox_sent(self, outbox_id: Any) -> None: ...
 
     # --- escalations ---
     def upsert_escalation(self, request_id: str, recommendation: dict[str, Any], assigned_to: str | None = None) -> None: ...
@@ -54,6 +63,8 @@ class InMemoryRepository:
         self._resolutions: dict[str, dict[str, Any]] = {}
         self._audit: list[dict[str, Any]] = []
         self._escalations: dict[str, dict[str, Any]] = {}
+        self._outbox: list[dict[str, Any]] = []
+        self._lock = threading.Lock()  # makes the idempotency check+insert atomic (D-03)
         self.dataset = ds
 
     # --- domain reads ---
@@ -98,10 +109,64 @@ class InMemoryRepository:
 
     # --- audit (append-only) ---
     def append_audit(self, entry: dict[str, Any]) -> None:
-        row = dict(entry)
-        row.setdefault("created_at", datetime.now().isoformat())
-        row["id"] = len(self._audit) + 1
-        self._audit.append(row)
+        with self._lock:
+            row = dict(entry)
+            row.setdefault("created_at", datetime.now().isoformat())
+            row["id"] = len(self._audit) + 1
+            self._audit.append(row)
+
+    def try_insert_audit(self, entry: dict[str, Any]) -> tuple[bool, Any]:
+        """Atomic idempotent insert (D-03): insert iff (request_id, action_type) is new.
+
+        Returns ``(inserted, audit_id)``. The check and the append happen under one lock so
+        concurrent callers for the same key cannot both insert (the in-memory analogue of the
+        Postgres ``UNIQUE`` + ``ON CONFLICT DO NOTHING``)."""
+        with self._lock:
+            for a in self._audit:
+                if a["request_id"] == entry["request_id"] and a["action_type"] == entry["action_type"]:
+                    return False, a["id"]
+            row = dict(entry)
+            row.setdefault("created_at", datetime.now().isoformat())
+            row["id"] = len(self._audit) + 1
+            self._audit.append(row)
+            return True, row["id"]
+
+    # --- transactional outbox ---
+    def record_action(self, audit_entry: dict[str, Any], topic: str, key: str,
+                      payload: dict[str, Any]) -> dict[str, Any]:
+        """Atomically (D-03 + D-04) insert the audit row AND the outbox event iff the action
+        is new. Either both are written or neither — so a later broker failure can never leave
+        an audit row without a guaranteed event."""
+        with self._lock:
+            for a in self._audit:
+                if a["request_id"] == audit_entry["request_id"] and a["action_type"] == audit_entry["action_type"]:
+                    return {"applied": False, "audit_id": a["id"]}
+            row = dict(audit_entry)
+            row.setdefault("created_at", datetime.now().isoformat())
+            row["id"] = len(self._audit) + 1
+            self._audit.append(row)
+            self._outbox.append({
+                "id": len(self._outbox) + 1, "request_id": audit_entry["request_id"],
+                "topic": topic, "msg_key": key, "payload": payload, "status": "pending",
+            })
+            return {"applied": True, "audit_id": row["id"]}
+
+    def enqueue_outbox(self, request_id: str, topic: str, key: str, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self._outbox.append({
+                "id": len(self._outbox) + 1, "request_id": request_id, "topic": topic,
+                "msg_key": key, "payload": payload, "status": "pending",
+            })
+
+    def list_pending_outbox(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [dict(o) for o in self._outbox if o["status"] == "pending"]
+
+    def mark_outbox_sent(self, outbox_id: Any) -> None:
+        with self._lock:
+            for o in self._outbox:
+                if o["id"] == outbox_id:
+                    o["status"] = "sent"
 
     def get_audit(self, request_id: str, action_type: str | None = None) -> list[dict[str, Any]]:
         rows = [a for a in self._audit if a["request_id"] == request_id]
@@ -246,10 +311,75 @@ class PostgresRepository:
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO audit_log (request_id, action_type, amount, actor, payload) "
-                "VALUES (%s, %s, %s, %s, %s)",
+                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (request_id, action_type) DO NOTHING",
                 (entry["request_id"], entry["action_type"], entry.get("amount"),
                  entry["actor"], json.dumps(entry.get("payload", {}))),
             )
+
+    def try_insert_audit(self, entry: dict[str, Any]) -> tuple[bool, Any]:
+        import json
+        with self._connect() as conn:
+            row = conn.execute(
+                "INSERT INTO audit_log (request_id, action_type, amount, actor, payload) "
+                "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (request_id, action_type) DO NOTHING "
+                "RETURNING id",
+                (entry["request_id"], entry["action_type"], entry.get("amount"),
+                 entry["actor"], json.dumps(entry.get("payload", {}))),
+            ).fetchone()
+            if row:
+                return True, row["id"]
+            ex = conn.execute(
+                "SELECT id FROM audit_log WHERE request_id = %s AND action_type = %s",
+                (entry["request_id"], entry["action_type"]),
+            ).fetchone()
+            return False, (ex["id"] if ex else None)
+
+    def record_action(self, audit_entry: dict[str, Any], topic: str, key: str,
+                      payload: dict[str, Any]) -> dict[str, Any]:
+        """Atomic audit + outbox insert in ONE transaction (D-03 + D-04). The UNIQUE
+        constraint makes the idempotency atomic; the outbox row is written only when the
+        audit row is newly inserted, so the effect and its event commit together."""
+        import json
+        with self._connect() as conn:
+            with conn.transaction():
+                row = conn.execute(
+                    "INSERT INTO audit_log (request_id, action_type, amount, actor, payload) "
+                    "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (request_id, action_type) DO NOTHING "
+                    "RETURNING id",
+                    (audit_entry["request_id"], audit_entry["action_type"], audit_entry.get("amount"),
+                     audit_entry["actor"], json.dumps(audit_entry.get("payload", {}))),
+                ).fetchone()
+                if not row:
+                    ex = conn.execute(
+                        "SELECT id FROM audit_log WHERE request_id = %s AND action_type = %s",
+                        (audit_entry["request_id"], audit_entry["action_type"]),
+                    ).fetchone()
+                    return {"applied": False, "audit_id": ex["id"] if ex else None}
+                conn.execute(
+                    "INSERT INTO outbox (request_id, topic, msg_key, payload) VALUES (%s, %s, %s, %s)",
+                    (audit_entry["request_id"], topic, key, json.dumps(payload)),
+                )
+                return {"applied": True, "audit_id": row["id"]}
+
+    def enqueue_outbox(self, request_id: str, topic: str, key: str, payload: dict[str, Any]) -> None:
+        import json
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO outbox (request_id, topic, msg_key, payload) VALUES (%s, %s, %s, %s)",
+                (request_id, topic, key, json.dumps(payload)),
+            )
+
+    def list_pending_outbox(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, request_id, topic, msg_key, payload FROM outbox "
+                "WHERE status = 'pending' ORDER BY id"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def mark_outbox_sent(self, outbox_id: Any) -> None:
+        with self._connect() as conn:
+            conn.execute("UPDATE outbox SET status = 'sent', sent_at = now() WHERE id = %s", (outbox_id,))
 
     def get_audit(self, request_id: str, action_type: str | None = None) -> list[dict[str, Any]]:
         q = "SELECT * FROM audit_log WHERE request_id = %s"

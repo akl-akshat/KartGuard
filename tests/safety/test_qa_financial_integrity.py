@@ -116,18 +116,20 @@ def test_order_customer_mismatch_does_not_launder_risk():
     )
 
 
-def test_mismatch_uses_true_owner_and_does_not_leak(  # D-01 regression
-):
-    """The resolution must be keyed to the order's TRUE owner, never the supplied id,
-    and must not echo the supplied (foreign) identity."""
+def test_mismatch_uses_true_owner_and_does_not_leak():  # D-01 regression
+    """The flow must be keyed to the order's TRUE owner, never the supplied id, and the
+    escalation must not carry the supplied (foreign) identity. A mismatch escalates, so the
+    state/escalation (not a persisted resolution) carry the authoritative customer."""
     g = build_graph(checkpointer=_mem())
-    final = g.invoke(initial_state("own-1", "The item is too tight", order_id="EVO-SIZE-PRE",
-                                   customer_id="CUST-SERIAL"), run_config("own-1"))
-    repo = get_deps().repo
-    res = repo.get_resolution("own-1")
-    assert res["customer_id"] == "CUST-LOW1"          # true owner of EVO-SIZE-PRE (pre-fix: CUST-SERIAL)
-    assert is_paused(g, run_config("own-1")) or final.get("requires_human")
-    assert "CUST-SERIAL" not in (final.get("customer_message") or "")
+    cfg = run_config("own-1")
+    g.invoke(initial_state("own-1", "The item is too tight", order_id="EVO-SIZE-PRE",
+                           customer_id="CUST-SERIAL"), cfg)
+    assert is_paused(g, cfg)                              # mismatch → human verification
+    snap = g.get_state(cfg)
+    assert snap.values["customer_id"] == "CUST-LOW1"     # true owner (pre-fix: CUST-SERIAL)
+    esc = get_deps().repo.get_escalation("own-1")
+    assert esc["recommendation"]["customer_id"] == "CUST-LOW1"
+    assert "CUST-SERIAL" not in str(esc["recommendation"])  # foreign id not carried
 
 
 def _mem():
