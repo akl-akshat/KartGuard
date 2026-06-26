@@ -30,11 +30,8 @@ jobs:
       - name: Lint
         run: ruff check .
 
-      - name: Unit + safety tests
-        run: pytest -q -m "unit or safety"
-
-      - name: Integration tests
-        run: pytest -q -m "integration"
+      - name: Full test suite (all markers incl. safety/concurrency/failure/property/e2e)
+        run: pytest -q
 
       - name: Evaluation harness (hard gates)
         run: python -m eval.runner
