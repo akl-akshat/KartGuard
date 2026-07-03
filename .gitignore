@@ -50,3 +50,6 @@ _scratch/
 # --- Docker / data volumes ---
 .pgdata/
 .kafkadata/
+
+# local chat store (SQLite)
+.rg_chat.db*
