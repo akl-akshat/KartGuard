@@ -15,6 +15,11 @@ observability, and an evaluation harness with hard safety gates.
 
 [![CI](https://github.com/akl-akshat/ReturnGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/akl-akshat/ReturnGuard/actions/workflows/ci.yml)
 
+**Live demo:** [returnguard-99qu.onrender.com/chat](https://returnguard-99qu.onrender.com/chat) (customer console) ·
+[/admin](https://returnguard-99qu.onrender.com/admin) (ops console) — free tier, so the first
+request after idle takes ~30–50s to wake. A sample tenant ("Zomato (demo)") is pre-seeded:
+bind a new conversation to it and ask *"what is the policy if my food arrives with an insect?"*
+
 > Spec: [`docs/ReturnGuard_SRS.pdf`](docs/ReturnGuard_SRS.pdf) (source of truth) ·
 > Runbook: [`docs/ReturnGuard_Build_Plan.docx`](docs/ReturnGuard_Build_Plan.docx)
 
