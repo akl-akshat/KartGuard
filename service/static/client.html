@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ReturnGuard — Client Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* client portal — same restrained system as the ops console */
+:root{
+  --bg:#06070b; --panel:#0e1119; --glass:rgba(255,255,255,.045); --glass-2:rgba(255,255,255,.07);
+  --line:rgba(255,255,255,.09); --line-2:rgba(255,255,255,.16);
+  --ink:#eef2f9; --muted:#9aa6ba; --faint:#5e6b80;
+  --mint:#54f0a6; --cyan:#39d3ea; --violet:#9d8bff; --amber:#ffcf6b; --rose:#ff7a8a;
+  --display:'Plus Jakarta Sans',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif;
+  --label:'Space Grotesk',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14.5px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:13px 26px;
+  backdrop-filter:blur(14px);background:rgba(6,7,11,.7);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;font-family:var(--display)}
+.brand .logo{width:34px;height:34px;border-radius:10px;background:var(--mint);color:#04110a;display:grid;place-items:center;font-size:16px}
+.brand small{display:block;font-family:var(--label);font-size:10px;color:var(--muted);letter-spacing:.18em;text-transform:uppercase;font-weight:500}
+.nav a.lnk{color:var(--muted);font-size:13.5px;padding:7px 12px;border-radius:9px}
+.nav a.lnk:hover{color:var(--ink);background:var(--glass)}
+select,input,textarea{background:var(--glass);border:1px solid var(--line);border-radius:10px;color:var(--ink);
+  font:inherit;font-size:13px;padding:9px 12px;outline:0}
+select:focus,input:focus,textarea:focus{border-color:rgba(84,240,166,.4)}
+.page{max-width:1180px;margin:24px auto;padding:0 24px}
+h1{font-family:var(--display);font-size:22px;margin:0 0 2px}
+.lede{color:var(--muted);margin:0 0 20px;font-size:13.5px}
+.panel{background:var(--glass);border:1px solid var(--line);border-radius:16px;margin-bottom:20px;overflow:hidden}
+.panel-h{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+.panel-h h2{font-family:var(--display);font-size:14.5px;margin:0}
+.count{background:rgba(157,139,255,.14);color:var(--violet);font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px}
+.body{padding:14px 16px}
+.pill{font-family:var(--label);font-size:10.5px;font-weight:600;padding:3px 10px;border-radius:999px}
+.pill.mint{background:rgba(84,240,166,.12);color:var(--mint);border:1px solid rgba(84,240,166,.25)}
+.pill.amber{background:rgba(255,207,107,.12);color:var(--amber);border:1px solid rgba(255,207,107,.25)}
+.pill.dim{background:rgba(255,255,255,.06);color:var(--faint)}
+.btn{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px;padding:9px 16px;border-radius:999px;
+  border:1px solid var(--line);background:var(--glass);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--line-2)}
+.btn.primary{background:var(--mint);color:#04110a;border:0}
+.esc{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;background:var(--glass)}
+.esc-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.rid{font-family:var(--label);font-size:12px;color:var(--cyan)}
+.fac{color:var(--muted);font-size:12.5px;margin-top:2px}
+.risk .lab{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin:8px 0 4px}
+.bar{height:6px;border-radius:6px;background:rgba(255,255,255,.07);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px}
+.rat{font-size:12.5px;color:var(--muted);margin:9px 0}
+.acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.acts button{font:inherit;font-size:12.5px;font-weight:700;border-radius:9px;padding:8px 14px;cursor:pointer;border:1px solid var(--line)}
+.approve{background:linear-gradient(120deg,#54f0a6,#39d3ea);color:#04110a;border:0!important}
+.reject{background:var(--glass);color:var(--rose)}
+.reply-row{display:flex;gap:8px;margin-top:9px}
+.reply-row input{flex:1}
+.rec-row{display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px dashed var(--line);font-size:13px}
+.rec-row:last-child{border-bottom:0}
+.rec-row .rc{color:var(--faint);font-size:12px;flex:1}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:20px}
+@media(max-width:960px){.grid2{grid-template-columns:1fr}}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.form-grid .full{grid-column:1/-1}
+.empty{text-align:center;color:var(--faint);padding:26px 10px;font-size:13px}
+.msg{font-size:12px;color:var(--mint);min-height:16px;margin-top:6px}
+</style>
+</head>
+<body>
+  <nav class="nav">
+    <a class="brand" href="/"><div class="logo">🛡️</div><div>ReturnGuard<small>Client Portal</small></div></a>
+    <div style="display:flex;align-items:center;gap:10px">
+      <a class="lnk" href="/chat">Customer portal</a>
+      <a class="lnk" href="/admin">Platform admin</a>
+      <select id="coSel" onchange="pickCompany(this.value)" title="Signed in as (demo client login)"></select>
+    </div>
+  </nav>
+
+  <div class="page">
+    <h1 id="hTitle">Client console</h1>
+    <p class="lede">Cases our agent routed to your team — with the agent's briefing — plus your order database and policy documents on the ReturnGuard platform.</p>
+
+    <div class="panel">
+      <div class="panel-h"><h2>Cases awaiting your review</h2><span class="count" id="revCount">0</span></div>
+      <div class="body" id="reviews"><div class="empty">Pick your company above.</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-h"><h2>Your order database (mock)</h2><span class="count" id="ordCount">0</span></div>
+        <div class="body">
+          <div class="form-grid">
+            <input id="oPhone" placeholder="Customer phone (universal ID)">
+            <input id="oName" placeholder="Customer name">
+            <input id="oTitle" placeholder="Item title" class="full">
+            <select id="oCat">
+              <option value="grocery">grocery (food)</option><option value="electronics">electronics</option>
+              <option value="apparel">apparel</option><option value="footwear">footwear</option>
+              <option value="home">home</option><option value="beauty">beauty</option><option value="books">books</option>
+            </select>
+            <input id="oPrice" type="number" placeholder="Price (₹)">
+          </div>
+          <div style="margin-top:9px;display:flex;gap:8px;align-items:center">
+            <button class="btn primary" onclick="addOrder()">Add order</button><span class="msg" id="oMsg"></span>
+          </div>
+          <div id="orders" style="margin-top:8px"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h2>Your policy documents</h2><span class="count" id="docCount">0</span></div>
+        <div class="body">
+          <div id="docs"></div>
+          <input id="dName" placeholder="Document name (e.g. refund-policy.md)" style="width:100%;margin-top:8px">
+          <textarea id="dText" rows="4" placeholder="Paste the policy text — the agent answers your customers FROM this document" style="width:100%;margin-top:8px;resize:vertical"></textarea>
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+            <button class="btn primary" onclick="uploadDoc()">Upload / replace</button><span class="msg" id="dMsg"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $=s=>document.querySelector(s);
+const api=(u,o)=>fetch(u,o).then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); });
+let companies=[], CO=null;
+
+async function boot(){
+  companies=await api('/api/companies');
+  const params=new URLSearchParams(location.search);
+  const want=params.get('co')||companies[0]?.id;
+  $('#coSel').innerHTML=companies.map(c=>`<option value="${c.id}" ${c.id===want?'selected':''}>${c.name}</option>`).join('');
+  if(want) pickCompany(want);
+}
+function pickCompany(id){
+  CO=companies.find(c=>c.id===id); if(!CO) return;
+  history.replaceState(null,'',`/client?co=${id}`);
+  $('#hTitle').textContent=`${CO.name} — support console`;
+  refresh();
+}
+async function refresh(){ if(!CO) return; loadReviews(); loadOrders(); loadDocs(); }
+
+async function loadReviews(){
+  const q=await api(`/api/reviews?company_id=${CO.id}`); $('#revCount').textContent=q.length;
+  if(!q.length){ $('#reviews').innerHTML=`<div class="empty">✅ No cases waiting. The agent is handling your customers within policy.</div>`; return; }
+  $('#reviews').innerHTML=q.map(r=>{
+    const pa=r.proposed_action||{}; const ev=r.evidence||{};
+    const cred=(r.credibility&&r.credibility.score!=null)?r.credibility.score:0.75;
+    const cc=cred>=0.55?'var(--mint)':cred>=0.3?'var(--amber)':'var(--rose)';
+    const evtxt=ev.verdict?`Evidence <b style="color:${ev.verdict==='supports'?'var(--mint)':'var(--rose)'}">${ev.verdict}</b> (${Number(ev.confidence||0).toFixed(2)} conf)`:'No evidence provided';
+    const brief=`${(r.reason||'review').replace(/_/g,' ')} · ${(r.issue_type||'—').replace(/_/g,' ')}${r.vendor_notify?' · 🏷️ vendor notification recommended':''}`;
+    const pol=(r.policy_citations&&r.policy_citations.length)?`<br><span style="color:var(--cyan)">Policy basis</span>: ${r.policy_citations[0].text.slice(0,120)}…`:'';
+    return `<div class="esc"><div class="esc-top"><div style="flex:1">
+        <div class="rid">${r.customer_id} · ${r.title||'—'}</div><div class="fac">${brief}</div></div>
+        <span class="pill amber">${(pa.action_type||'needs decision').replace(/_/g,' ')}${pa.amount?(' ₹'+Number(pa.amount).toFixed(0)):''}</span></div>
+      <div class="risk"><div class="lab"><span>Customer credibility (platform-wide)</span><span style="color:${cc};font-weight:700">${Number(cred).toFixed(2)}</span></div>
+        <div class="bar"><i style="width:${cred*100}%;background:${cc}"></i></div></div>
+      <div class="rat">${evtxt}${pol}</div>
+      <div class="reply-row"><input id="rp-${r.id}" placeholder="Write to the customer — appears in their chat…">
+        <button class="btn" onclick="reply('${r.id}')">Send</button></div>
+      <div class="acts" style="margin-top:9px">
+        <button class="approve" onclick="decide('${r.id}','approve')">Approve</button>
+        <button class="reject" onclick="decide('${r.id}','deny')">Deny</button>
+        <button class="reject" title="Deny and record a confirmed false claim (harsher credibility penalty platform-wide)" onclick="decide('${r.id}','deny',true)">Deny · fraud</button>
+      </div></div>`;
+  }).join('');
+}
+async function reply(sid){
+  const inp=$('#rp-'+sid); const text=(inp.value||'').trim(); if(!text) return;
+  await api(`/api/sessions/${sid}/reply`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({reviewer_id:`${CO.name.toLowerCase().split(' ')[0]}-agent`,text})});
+  inp.value=''; inp.placeholder='Sent — the customer sees it in their chat ✓';
+}
+async function decide(sid,decision,fraud){
+  await api(`/api/sessions/${sid}/review`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({decision,reviewer_id:`${CO.name.toLowerCase().split(' ')[0]}-agent`,fraud:!!fraud})});
+  loadReviews();
+}
+
+async function loadOrders(){
+  const rows=await api(`/api/companies/${CO.id}/orders`); $('#ordCount').textContent=rows.length;
+  $('#orders').innerHTML=rows.length?rows.map(o=>`<div class="rec-row">
+      <span>${o.emoji}</span><b>${o.title}</b>
+      <span class="rc">${o.id} · ${o.phone} · ₹${Number(o.price).toFixed(0)} · ${o.category}</span>
+      <span class="pill ${o.within_window?'mint':'dim'}">${o.within_window?'window open':'window closed'}</span>
+      <button class="btn" style="padding:4px 10px;font-size:11.5px;color:var(--rose)" onclick="delOrder('${o.id}')">remove</button>
+    </div>`).join(''):`<div class="empty">No orders yet — add one above.</div>`;
+}
+async function addOrder(){
+  const b={phone:$('#oPhone').value.trim(), customer_name:$('#oName').value.trim()||'Customer',
+           title:$('#oTitle').value.trim(), category:$('#oCat').value, price:parseFloat($('#oPrice').value)||0};
+  const m=$('#oMsg');
+  if(!b.phone||!b.title||b.price<=0){ m.style.color='var(--rose)'; m.textContent='Phone, title and price are required.'; return; }
+  try{ await api(`/api/companies/${CO.id}/orders`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+    m.style.color='var(--mint)'; m.textContent='✓ Added — visible in the customer\'s cross-brand view.';
+    $('#oTitle').value=''; $('#oPrice').value=''; loadOrders();
+  }catch(e){ m.style.color='var(--rose)'; m.textContent='Failed — check the inputs.'; }
+}
+async function delOrder(id){ await api(`/api/orders/${id}`,{method:'DELETE'}); loadOrders(); }
+
+async function loadDocs(){
+  const docs=await api(`/api/companies/${CO.id}/policies`); $('#docCount').textContent=docs.length;
+  $('#docs').innerHTML=docs.length?docs.map(d=>`<div class="rec-row"><span>📄</span><b>${d.doc_name}</b>
+      <span class="rc">${d.chunks} paragraphs indexed — grounds every customer reply</span></div>`).join('')
+    :`<div class="empty">No policy uploaded — the agent falls back to platform defaults.</div>`;
+}
+async function uploadDoc(){
+  const doc=$('#dName').value.trim(), text=$('#dText').value.trim(); const m=$('#dMsg');
+  if(!doc||text.length<40){ m.style.color='var(--rose)'; m.textContent='Give a document name and at least a paragraph.'; return; }
+  try{ const out=await api(`/api/companies/${CO.id}/policies`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({doc_name:doc,text})});
+    m.style.color='var(--mint)'; m.textContent=`✓ Indexed ${out.chunks} paragraphs.`; $('#dText').value=''; loadDocs();
+  }catch(e){ m.style.color='var(--rose)'; m.textContent='Upload failed.'; }
+}
+boot(); setInterval(()=>{ if(CO) loadReviews(); }, 7000);
+</script>
+</body>
+</html>

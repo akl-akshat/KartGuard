@@ -250,7 +250,8 @@ async function loadCompanies(){
   $('#coRows').innerHTML=companies.length?companies.map(c=>
     `<div class="rec-row"><span style="font-weight:600">${c.name}</span>
       <span class="rc">${c.docs} document${c.docs===1?'':'s'} · ${c.chunks} paragraphs indexed</span>
-      <span class="pill mint">active</span></div>`).join(''):'';
+      <span class="pill mint">active</span>
+      <a class="pill violet" href="/client?co=${c.id}" style="text-decoration:none">client portal →</a></div>`).join(''):'';
 }
 function fileChosen(){
   const f=$('#docFile').files[0]; if(!f)return;

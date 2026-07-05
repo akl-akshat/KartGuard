@@ -12,7 +12,7 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from agent.deps import reset_deps  # noqa: E402
-from service import chat_store, policy_store  # noqa: E402
+from service import chat_store  # noqa: E402
 from service.app import app  # noqa: E402
 
 pytestmark = pytest.mark.integration
@@ -41,7 +41,7 @@ only as Swiggy Money (wallet credit), never to source, unless the replacement al
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(chat_store, "DB_PATH", str(tmp_path / "chat.db"))
     monkeypatch.setattr(chat_store, "_INIT", False)
-    monkeypatch.setattr(policy_store, "_INIT", False)
+    # policy/platform stores re-init automatically per DB path
     reset_deps()
     with TestClient(app) as c:
         yield c

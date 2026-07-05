@@ -264,7 +264,11 @@ h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:-.01em;margin
     <aside class="rail" id="rail">
       <div class="rail-h">
         <h2>Conversations</h2>
-        <button class="newbtn" onclick="App.openNew()"><span class="msym">add</span> New</button>
+        <div style="display:flex;gap:6px">
+          <button class="newbtn" id="refundsBtn" style="display:none" title="My refunds across all brands"
+            onclick="App.openRefunds()"><span class="msym">receipt_long</span> Refunds</button>
+          <button class="newbtn" onclick="App.openNew()"><span class="msym">add</span> New</button>
+        </div>
       </div>
       <div class="convs" id="convs"></div>
     </aside>
@@ -314,38 +318,60 @@ const ACCOUNT_ICON="support_agent";
 
 const App = {
   customers:[], cust:null, sessions:[], orders:[], ordersById:{},
-  companies:[], activeId:null, session:null, sending:false,
+  companies:[], pusers:[], activeId:null, session:null, sending:false,
+
+  isPlatform(){ return !!(this.cust && String(this.cust.id).startsWith('PU-')); },
 
   /* ---------- boot ---------- */
   async boot(){
     try{ this.customers = await this.get('/api/customers'); }
     catch(e){ return this.fatal('Could not reach the server.'); }
     try{ this.companies = await this.get('/api/companies'); }catch(e){ this.companies=[]; }
-    $('#menuList').innerHTML = this.customers.map(c=>`
+    try{ this.pusers = await this.get('/api/platform/users'); }catch(e){ this.pusers=[]; }
+    const initials = n => n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    let html = '';
+    if(this.pusers.length){
+      html += `<div class="mlbl">Platform accounts · phone = one ID across all brands</div>`;
+      html += this.pusers.map(u=>`
+        <button onclick="App.switchCustomer('${u.id}')" data-cid="${u.id}">
+          <span class="av">${initials(u.name)}</span>
+          <span><div class="mnm">${u.name}</div><div class="mid">📱 ${u.phone}</div></span>
+        </button>`).join('');
+      html += `<div class="mlbl">Single-store demo accounts</div>`;
+    }
+    html += this.customers.map(c=>`
       <button onclick="App.switchCustomer('${c.id}')" data-cid="${c.id}">
         <span class="av">${c.initials}</span>
         <span><div class="mnm">${c.name}</div><div class="mid">${c.id}</div></span>
       </button>`).join('');
+    $('#menuList').innerHTML = html;
     const params = new URLSearchParams(location.search);
-    const cid = params.get('c') || this.customers[0].id;
+    const cid = params.get('c') || (this.pusers[0] || this.customers[0]).id;
     await this.switchCustomer(cid, params.get('s'), true);
   },
 
   /* ---------- account ---------- */
   async switchCustomer(cid, wantSession=null, initial=false){
-    this.cust = this.customers.find(c=>c.id===cid) || this.customers[0];
+    const pu = this.pusers.find(u=>u.id===cid);
+    this.cust = pu
+      ? {id:pu.id, name:pu.name, initials:pu.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(), phone:pu.phone}
+      : (this.customers.find(c=>c.id===cid) || this.pusers[0] || this.customers[0]);
     this.closeMenu();
     $('#whoAv').textContent = this.cust.initials;
     $('#whoNm').textContent = this.cust.name;
-    $('#whoId').textContent = this.cust.id;
+    $('#whoId').textContent = this.cust.phone ? ('📱 '+this.cust.phone) : this.cust.id;
     document.querySelectorAll('#menuList button').forEach(b=>b.classList.toggle('on', b.dataset.cid===this.cust.id));
+    $('#refundsBtn').style.display = this.isPlatform() ? '' : 'none';
     // reset chat view when switching
     if(!wantSession){ this.activeId=null; this.session=null; this.renderChatEmpty(); }
     this.renderSkeleton();
-    // orders (for the new-conversation picker + emoji lookup) and sessions in parallel
+    // orders (cross-brand for platform users) and sessions in parallel
+    const ordersUrl = this.isPlatform()
+      ? `/api/platform/users/${this.cust.id}/orders`
+      : `/api/customers/${this.cust.id}/orders`;
     const [orders, sessions] = await Promise.all([
-      this.get(`/api/customers/${cid}/orders`).catch(()=>[]),
-      this.get(`/api/sessions?customer_id=${cid}`).catch(()=>[]),
+      this.get(ordersUrl).catch(()=>[]),
+      this.get(`/api/sessions?customer_id=${this.cust.id}`).catch(()=>[]),
     ]);
     this.orders = orders; this.ordersById = Object.fromEntries(orders.map(o=>[o.id,o]));
     this.sessions = sessions;
@@ -566,7 +592,7 @@ const App = {
   openNew(){
     const body=$('#pickBody');
     let html='';
-    if(this.companies.length){
+    if(this.companies.length && !this.isPlatform()){
       html += `<div class="modal-sep">Support policy</div>
         <div style="display:flex;align-items:center;gap:10px;padding:2px 2px 8px">
           <span class="msym" style="color:var(--muted);font-size:18px">menu_book</span>
@@ -580,20 +606,42 @@ const App = {
       <div class="pic">💬</div><div class="pmain"><div class="ptitle">General enquiry</div>
       <div class="pmeta">Ask about policy, timelines or options — no specific order</div></div></button>`;
     if(this.orders.length){
-      html += `<div class="modal-sep">Your orders</div>`;
+      html += `<div class="modal-sep">${this.isPlatform()?'Your orders — every brand, one account':'Your orders'}</div>`;
       html += this.orders.map(o=>{
         const win = o.returnable ? (o.within_window?'<span class="tag done"><span class="dot"></span>Returnable</span>'
           :'<span class="tag closed"><span class="dot"></span>Window closed</span>')
           : '<span class="tag await"><span class="dot"></span>Final sale</span>';
+        const brand = o.brand ? `<span class="tag review" style="margin-right:6px"><span class="dot"></span>${this.esc(o.brand)}</span>` : '';
         return `<button class="pick" onclick="App.createSession('${o.id}')">
           <div class="pic">${o.emoji}</div>
           <div class="pmain"><div class="ptitle">${this.esc(o.title)}</div>
-            <div class="pmeta">${o.category} &middot; delivered ${o.delivery_date||'—'} &nbsp; ${win}</div></div>
+            <div class="pmeta">${brand}${o.category} &middot; delivered ${o.delivery_date||'—'} &nbsp; ${win}</div></div>
           <div class="pprice">₹${o.price.toFixed(0)}</div></button>`;
       }).join('');
     }
     body.innerHTML=html;
     $('#overlay').classList.add('open');
+  },
+
+  async openRefunds(){
+    const body=$('#pickBody');
+    body.innerHTML='<div class="modal-sep">My refunds & resolutions — all brands</div><div class="blank" style="padding:14px"><p>Loading…</p></div>';
+    $('#overlay').classList.add('open');
+    try{
+      const s=await this.get(`/api/platform/users/${this.cust.id}/refunds-summary`);
+      const max=Math.max(1,...s.brands.map(b=>b.amount));
+      const rows=s.brands.length?s.brands.map(b=>`
+        <div style="padding:8px 4px">
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px">
+            <b>${this.esc(b.brand)}</b><span style="color:var(--muted)">${b.count} resolution${b.count===1?'':'s'} · ₹${b.amount.toFixed(0)}</span></div>
+          <div style="height:7px;border-radius:6px;background:var(--surface-2);overflow:hidden">
+            <i style="display:block;height:100%;width:${Math.max(4,b.amount/max*100)}%;background:var(--accent)"></i></div>
+        </div>`).join('')
+        :'<div class="blank" style="padding:12px"><p>No resolutions yet — when a return or refund completes on any brand, it shows up here.</p></div>';
+      body.innerHTML=`<div class="modal-sep">My refunds & resolutions — all brands</div>${rows}
+        <div style="font-family:var(--label);font-size:11px;color:var(--faint);padding:10px 4px 2px">
+          TOTAL RESOLVED VALUE&nbsp; ₹${(s.total_amount||0).toFixed(0)} · one identity (your phone) across every platform</div>`;
+    }catch(e){ body.innerHTML='<div class="blank"><p>Could not load your refunds right now.</p></div>'; }
   },
   closeNew(){ $('#overlay').classList.remove('open'); },
   async createSession(orderId){
