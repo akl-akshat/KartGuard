@@ -15,7 +15,17 @@ from fastapi import FastAPI
 from agent.graph import build_graph
 from config.settings import settings
 from observability.logging import configure_logging
-from service.routes import chat, escalations, health, metrics, portal, resolutions, resolve, tenants
+from service.routes import (
+    chat,
+    escalations,
+    health,
+    metrics,
+    platform,
+    portal,
+    resolutions,
+    resolve,
+    tenants,
+)
 
 log = logging.getLogger("service")
 
@@ -71,3 +81,4 @@ app.include_router(metrics.router, tags=["analytics"])
 app.include_router(portal.router, tags=["portal"])
 app.include_router(chat.router, tags=["chat"])
 app.include_router(tenants.router, tags=["tenants"])
+app.include_router(platform.router, tags=["platform"])

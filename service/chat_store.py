@@ -126,6 +126,30 @@ def list_sessions(customer_id: str) -> list[dict[str, Any]]:
     return out
 
 
+def refund_status_for(customer_id: str, order_id: str | None) -> dict[str, Any]:
+    """What has actually happened, money-wise, for this customer (optionally on one order).
+
+    Scans the customer's sessions for executed resolutions and pending reviews so the agent
+    can answer "where is my refund?" from real history instead of boilerplate.
+    """
+    init()
+    with _conn() as c:
+        rows = c.execute("SELECT id, order_id, status, state, updated_at FROM sessions "
+                         "WHERE customer_id=? ORDER BY updated_at DESC", (customer_id,)).fetchall()
+    resolutions, pending = [], []
+    for r in rows:
+        if order_id and r["order_id"] != order_id:
+            continue
+        st = json.loads(r["state"] or "{}")
+        res = st.get("resolution")
+        if res:
+            resolutions.append({"order_id": r["order_id"], "action_type": res.get("action_type"),
+                                "amount": float(res.get("amount") or 0), "when": r["updated_at"]})
+        elif r["status"] == "escalated":
+            pending.append({"order_id": r["order_id"], "when": r["updated_at"]})
+    return {"resolutions": resolutions, "pending_review": pending}
+
+
 def list_reviews() -> list[dict[str, Any]]:
     """Chat sessions awaiting a human review (escalated), newest first — for the ops console."""
     init()

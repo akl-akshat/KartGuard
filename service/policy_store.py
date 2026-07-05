@@ -25,12 +25,14 @@ _MIN_CHUNK_CHARS = 40
 _MAX_CHUNKS_PER_DOC = 400
 _MAX_DOC_CHARS = 400_000
 
-_INIT = False
+# Path-aware init guard: tests repoint chat_store.DB_PATH at fresh files; the schema must be
+# (re)applied per DB file, not once per process.
+_INIT_PATH: str | None = None
 
 
 def init() -> None:
-    global _INIT
-    if _INIT:
+    global _INIT_PATH
+    if _INIT_PATH == chat_store.DB_PATH:
         return
     chat_store.init()
     with _LOCK, _conn() as c:
@@ -53,7 +55,7 @@ def init() -> None:
             CREATE INDEX IF NOT EXISTS idx_chunk_company ON policy_chunks(company_id);
             """
         )
-    _INIT = True
+    _INIT_PATH = chat_store.DB_PATH
 
 
 # ------------------------------------------------------------------ chunking
