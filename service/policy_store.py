@@ -149,6 +149,18 @@ def upload_policy(company_id: str, doc_name: str, text: str) -> dict[str, Any]:
     return {"company_id": company_id, "doc_name": doc_name, "chunks": len(chunks)}
 
 
+def delete_document(company_id: str, doc_name: str) -> bool:
+    """Remove one policy document; the RAG corpus updates immediately."""
+    from service import cache
+
+    init()
+    with _LOCK, _conn() as c:
+        cur = c.execute("DELETE FROM policy_chunks WHERE company_id=? AND doc_name=?",
+                        (company_id, doc_name))
+    cache.invalidate(f"chunks:{company_id}")
+    return cur.rowcount > 0
+
+
 def list_documents(company_id: str) -> list[dict[str, Any]]:
     init()
     with _conn() as c:

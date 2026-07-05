@@ -8,10 +8,13 @@ top paragraphs ground the agent's replies and escalation context (RAG per tenant
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+import base64
+
+from fastapi import APIRouter, Cookie, HTTPException
 from pydantic import BaseModel, Field
 
-from service import policy_store
+from service import doc_extract, policy_store
+from service.routes.auth import require_role
 
 router = APIRouter()
 
@@ -55,6 +58,46 @@ def upload_policy(company_id: str, body: UploadPolicy) -> dict:
     if out["chunks"] == 0:
         raise HTTPException(status_code=422, detail="document produced no usable paragraphs")
     return out
+
+
+class UploadPolicyFile(BaseModel):
+    doc_name: str = Field(..., min_length=1, max_length=120)
+    content_b64: str = Field(..., min_length=8)   # the raw file, base64-encoded (PDF/DOCX/MD/TXT)
+
+
+@router.post("/api/companies/{company_id}/policies/upload")
+def upload_policy_file(company_id: str, body: UploadPolicyFile) -> dict:
+    """Upload a policy as a FILE — PDF, DOCX, Markdown or plain text. The text is extracted,
+    chunked, embedded and immediately live for that client's conversations."""
+    if not policy_store.get_company(company_id):
+        raise HTTPException(status_code=404, detail="company not found")
+    try:
+        data = base64.b64decode(body.content_b64, validate=True)
+    except Exception:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail="content_b64 is not valid base64") from None
+    if len(data) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="file too large (15 MB max)")
+    try:
+        text = doc_extract.extract_text(body.doc_name, data)
+    except doc_extract.ExtractionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    out = policy_store.upload_policy(company_id, body.doc_name, text)
+    if out["chunks"] == 0:
+        raise HTTPException(status_code=422, detail="document produced no usable paragraphs")
+    return {**out, "extracted_chars": len(text)}
+
+
+@router.delete("/api/companies/{company_id}/policies/{doc_name}")
+def delete_policy(company_id: str, doc_name: str,
+                  rg_session: str | None = Cookie(default=None)) -> dict:
+    """Danger zone: remove a policy document (client or admin only). Takes effect immediately —
+    conversations fall back to the remaining documents / platform defaults."""
+    require_role(rg_session, "client", "admin")
+    if not policy_store.get_company(company_id):
+        raise HTTPException(status_code=404, detail="company not found")
+    if not policy_store.delete_document(company_id, doc_name):
+        raise HTTPException(status_code=404, detail="document not found")
+    return {"ok": True}
 
 
 @router.get("/api/companies/{company_id}/search")
