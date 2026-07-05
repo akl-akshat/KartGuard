@@ -16,6 +16,7 @@ from agent.graph import build_graph
 from config.settings import settings
 from observability.logging import configure_logging
 from service.routes import (
+    admin,
     auth,
     chat,
     escalations,
@@ -88,3 +89,4 @@ app.include_router(platform.router, tags=["platform"])
 app.include_router(auth.router, tags=["auth"])
 app.include_router(wallet.router, tags=["wallet"])
 app.include_router(reps.router, tags=["reps"])
+app.include_router(admin.router, tags=["admin"])
