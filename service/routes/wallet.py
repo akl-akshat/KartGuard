@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Cookie, HTTPException
 from pydantic import BaseModel, Field
 
-from service import platform_store, wallet_store
+from service import platform_store, policy_store, wallet_store
+from service.routes.auth import require_role
 
 router = APIRouter()
 
@@ -77,6 +78,42 @@ def reveal_coupon(user_id: str, code: str) -> dict:
     out = wallet_store.reveal_coupon(user_id, code)
     if not out["ok"]:
         raise HTTPException(status_code=404, detail="coupon not found")
+    return out
+
+
+# --------------------------------------------------------------- brand-side coupon desk
+def _own_brand_or_admin(who: dict, brand_name: str) -> None:
+    """A client may only operate on codes issued against THEIR brand; admin sees all."""
+    if who["role"] == "admin":
+        return
+    co = policy_store.get_company(who["id"])
+    if not co or co["name"] != brand_name:
+        raise HTTPException(status_code=403, detail="this code belongs to a different brand")
+
+
+@router.get("/api/coupons/{code}")
+def check_coupon(code: str, rg_session: str | None = Cookie(default=None)) -> dict:
+    """Brand desk step 1: check what a customer-presented code is worth (and if it's used)."""
+    who = require_role(rg_session, "client", "admin")
+    c = wallet_store.get_coupon(code)
+    if not c:
+        raise HTTPException(status_code=404, detail="unknown code")
+    _own_brand_or_admin(who, c["brand"])
+    return c
+
+
+@router.post("/api/coupons/{code}/settle")
+def settle_coupon(code: str, rg_session: str | None = Cookie(default=None)) -> dict:
+    """Brand desk step 2: after the customer used the code at checkout, the brand submits it —
+    one-shot — and the platform pays the brand the coupon amount."""
+    who = require_role(rg_session, "client", "admin")
+    c = wallet_store.get_coupon(code)
+    if not c:
+        raise HTTPException(status_code=404, detail="unknown code")
+    _own_brand_or_admin(who, c["brand"])
+    out = wallet_store.settle_coupon(code)
+    if not out["ok"]:
+        raise HTTPException(status_code=409, detail=out["reason"])
     return out
 
 

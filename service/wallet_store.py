@@ -66,6 +66,8 @@ def init() -> None:
                 brand      TEXT NOT NULL,
                 amount     REAL NOT NULL,
                 revealed   INTEGER NOT NULL DEFAULT 0,
+                settled    INTEGER NOT NULL DEFAULT 0,   -- brand redeemed it with the platform
+                settled_at REAL,
                 created_at REAL NOT NULL
             );
             CREATE TABLE IF NOT EXISTS rewards_log (
@@ -79,6 +81,14 @@ def init() -> None:
             CREATE INDEX IF NOT EXISTS idx_rewards_user ON rewards_log(user_id, day);
             """
         )
+        # migration: coupons gained brand-settlement tracking
+        import sqlite3
+        for ddl in ("ALTER TABLE coupons ADD COLUMN settled INTEGER NOT NULL DEFAULT 0",
+                    "ALTER TABLE coupons ADD COLUMN settled_at REAL"):
+            try:
+                c.execute(ddl)
+            except sqlite3.OperationalError:
+                pass  # column already exists
     _INIT_PATH = chat_store.DB_PATH
 
 
@@ -220,8 +230,36 @@ def coupons(user_id: str) -> list[dict[str, Any]]:
         rows = c.execute("SELECT * FROM coupons WHERE user_id=? ORDER BY created_at DESC LIMIT 30",
                          (user_id,)).fetchall()
     # the owner always gets their code; "masked" drives the scratch-to-reveal presentation
-    return [{"code": r["code"], "masked": not r["revealed"],
+    return [{"code": r["code"], "masked": not r["revealed"], "settled": bool(r["settled"]),
              "brand": r["brand"], "amount": round(r["amount"], 2)} for r in rows]
+
+
+def get_coupon(code: str) -> dict[str, Any] | None:
+    """Brand-side lookup: what is this code worth, and has it been used already?"""
+    init()
+    with _conn() as c:
+        r = c.execute("SELECT * FROM coupons WHERE code=?", (code.strip().upper(),)).fetchone()
+    if not r:
+        return None
+    return {"code": r["code"], "brand": r["brand"], "amount": round(r["amount"], 2),
+            "revealed": bool(r["revealed"]), "settled": bool(r["settled"]),
+            "settled_at": r["settled_at"]}
+
+
+def settle_coupon(code: str) -> dict[str, Any]:
+    """The brand redeems the code with the platform after the customer used it at checkout.
+    One-shot: the platform then owes the brand exactly the coupon amount (funds were already
+    taken from the customer's wallet at creation)."""
+    init()
+    with _LOCK, _conn() as c:
+        r = c.execute("SELECT * FROM coupons WHERE code=?", (code.strip().upper(),)).fetchone()
+        if not r:
+            return {"ok": False, "reason": "not_found"}
+        if r["settled"]:
+            return {"ok": False, "reason": "already_settled"}
+        c.execute("UPDATE coupons SET settled=1, settled_at=? WHERE code=?", (_now(), r["code"]))
+    return {"ok": True, "code": r["code"], "brand": r["brand"], "amount": round(r["amount"], 2),
+            "payout_note": "platform pays the brand this amount in the settlement cycle"}
 
 
 # ------------------------------------------------------------------ games (daily-gated, fair)
