@@ -90,11 +90,27 @@
     </div>
 
     <!-- RECORDS -->
-    <div class="content" id="v-records" style="display:none">
+    <div class="content rail" id="v-records" style="display:none">
       <div class="card">
         <div class="card-h"><h3>Returns &amp; refunds ledger</h3>
           <span class="tiny muted">every case on your orders — resolutions, amounts, ratings</span></div>
         <div class="card-b" id="recordsList"></div>
+      </div>
+      <div class="stack">
+        <div class="card">
+          <div class="card-h"><h3>Coupon desk</h3><span class="msym">confirmation_number</span></div>
+          <div class="card-b stack" style="gap:10px">
+            <div class="tiny muted">A customer presents a ReturnGuard coupon at your checkout:
+              <b>check</b> its value first, then <b>settle</b> it after use — the platform pays you that amount.</div>
+            <div class="field"><label>Coupon code</label>
+              <input class="input" id="cpCode" autocomplete="off" placeholder="e.g. AMA-1B2C-3D4E" style="text-transform:uppercase"></div>
+            <div class="flex wrap">
+              <button class="btn" onclick="checkCoupon()"><span class="msym">search</span> Check value</button>
+              <button class="btn btn-green" onclick="settleCoupon()"><span class="msym">task_alt</span> Settle (paid out)</button>
+            </div>
+            <div id="cpOut"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -125,13 +141,25 @@
     <div class="content rail" id="v-policies" style="display:none">
       <div class="card"><div class="card-h"><h3>Your policy documents</h3><span class="count pill blue" id="docCount">0</span></div>
         <div class="card-b" id="docsList"></div></div>
-      <div class="card"><div class="card-h"><h3>Upload / replace</h3></div>
-        <div class="card-b stack" style="gap:10px">
-          <div class="field"><label>Document name</label><input class="input" id="dName" autocomplete="off" placeholder="refund-policy.md"></div>
-          <div class="field"><label>Policy text</label><textarea id="dText" rows="7" placeholder="The agent answers your customers FROM this document."></textarea></div>
-          <button class="btn btn-primary" onclick="uploadDoc()"><span class="msym">upload</span> Upload &amp; index</button>
-          <div class="tiny" id="dMsg" style="min-height:15px"></div>
-        </div></div>
+      <div class="stack">
+        <div class="card"><div class="card-h"><h3>Upload / replace</h3></div>
+          <div class="card-b stack" style="gap:10px">
+            <div class="field"><label>Document name</label><input class="input" id="dName" autocomplete="off" placeholder="refund-policy.pdf"></div>
+            <div class="field"><label>Policy file — PDF, Word (.docx), Markdown or text</label>
+              <input class="input" id="dFile" type="file" accept=".pdf,.docx,.md,.txt" onchange="if(this.files[0]&&!document.getElementById('dName').value)document.getElementById('dName').value=this.files[0].name"></div>
+            <div class="field"><label>…or paste the policy text</label><textarea id="dText" rows="5" placeholder="The agent answers your customers FROM this document."></textarea></div>
+            <button class="btn btn-primary" onclick="uploadDoc()"><span class="msym">upload</span> Upload &amp; index</button>
+            <div class="tiny" id="dMsg" style="min-height:15px"></div>
+          </div></div>
+        <div class="card" style="border-color:var(--red-soft)">
+          <div class="card-h" style="border-color:var(--red-soft)"><h3 style="color:var(--red)">Danger zone</h3><span class="msym" style="color:var(--red)">warning</span></div>
+          <div class="card-b stack" style="gap:8px">
+            <div class="tiny muted">Replacing a document (same name above) or deleting one takes effect
+              <b>immediately</b> across every customer conversation — the agent switches to the new policy
+              on the very next message. Requires your client sign-in.</div>
+            <div id="dangerDocs"></div>
+          </div></div>
+      </div>
     </div>
 
     <!-- TEAM -->
@@ -300,13 +328,63 @@ async function loadDocs(){
       <div class="main"><div class="t">${esc(d.doc_name)}</div><div class="s">${d.chunks} paragraphs indexed — grounds every reply</div></div>
       <span class="pill green">active</span></div>`).join('')
     :'<div class="empty tiny">No policy uploaded — platform defaults apply.</div>';
+  $('#dangerDocs').innerHTML=docs.length?docs.map(d=>`<div class="row">
+      <div class="main"><div class="t">${esc(d.doc_name)}</div></div>
+      <button class="btn btn-danger btn-sm" onclick="delDoc('${esc(d.doc_name)}')">Delete</button></div>`).join('')
+    :'<div class="empty tiny">Nothing to delete.</div>';
 }
+function fileToB64(file){ return new Promise((res,rej)=>{ const r=new FileReader();
+  r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(file); }); }
 async function uploadDoc(){
-  const doc=$('#dName').value.trim(), text=$('#dText').value.trim(); const m=$('#dMsg');
-  if(!doc||text.length<40){ m.style.color='var(--red)'; m.textContent='Name + at least a paragraph required.'; return; }
-  try{ const out=await P(`/api/companies/${CO.id}/policies`,{doc_name:doc,text});
-    m.style.color='var(--green)'; m.textContent=`✓ Indexed ${out.chunks} paragraphs.`; $('#dText').value=''; loadDocs();
-  }catch(e){ m.style.color='var(--red)'; m.textContent='Upload failed.'; }
+  const doc=$('#dName').value.trim(); const m=$('#dMsg');
+  const file=$('#dFile').files[0]; const text=$('#dText').value.trim();
+  if(!doc || (!file && text.length<40)){ m.style.color='var(--red)'; m.textContent='Give a document name and a file (or pasted text).'; return; }
+  m.style.color='var(--muted)'; m.textContent='Extracting & indexing…';
+  try{
+    let out;
+    if(file){
+      const b64=await fileToB64(file);
+      out=await P(`/api/companies/${CO.id}/policies/upload`,{doc_name:doc,content_b64:b64});
+    } else {
+      out=await P(`/api/companies/${CO.id}/policies`,{doc_name:doc,text});
+    }
+    m.style.color='var(--green)';
+    m.textContent=`✓ Indexed ${out.chunks} paragraphs${out.extracted_chars?(' from '+Math.round(out.extracted_chars/1000)+'k chars'):''} — live on the next customer message.`;
+    $('#dText').value=''; $('#dFile').value=''; loadDocs();
+  }catch(e){ m.style.color='var(--red)'; m.textContent='Upload failed — is the file a readable PDF/DOCX?'; }
+}
+async function delDoc(name){
+  if(!confirm(`Delete "${name}"? The agent stops using it immediately.`)) return;
+  try{ await api(`/api/companies/${CO.id}/policies/${encodeURIComponent(name)}`,{method:'DELETE'}); loadDocs(); }
+  catch(r){ if(r&&r.status===401) alert('Sign in as this client from the login page first.'); }
+}
+
+async function checkCoupon(){
+  const code=$('#cpCode').value.trim(); if(!code) return;
+  const out=$('#cpOut');
+  try{
+    const c=await api(`/api/coupons/${encodeURIComponent(code)}`);
+    out.innerHTML=`<div class="case" style="border-color:${c.settled?'var(--line)':'var(--green)'}">
+      <div class="flex between"><b>${esc(c.brand)} · ${esc(c.code)}</b>
+        <span class="pill ${c.settled?'gray':'green'}">${c.settled?'already used':'valid'}</span></div>
+      <div class="kv">Worth <b>₹${Number(c.amount).toFixed(0)}</b> against a purchase at your store.</div></div>`;
+  }catch(r){
+    out.innerHTML=`<div class="case" style="border-color:var(--red-soft)"><b style="color:var(--red)">
+      ${r&&r.status===403?'This code belongs to a different brand.':r&&r.status===401?'Sign in as this client first.':'Unknown code.'}</b></div>`;
+  }
+}
+async function settleCoupon(){
+  const code=$('#cpCode').value.trim(); if(!code) return;
+  const out=$('#cpOut');
+  try{
+    const s=await P(`/api/coupons/${encodeURIComponent(code)}/settle`);
+    out.innerHTML=`<div class="case" style="border-color:var(--green)">
+      <b style="color:var(--green)">✓ Settled — ReturnGuard pays you ₹${Number(s.amount).toFixed(0)}.</b>
+      <div class="kv">${esc(s.payout_note)}</div></div>`;
+  }catch(r){
+    out.innerHTML=`<div class="case" style="border-color:var(--red-soft)"><b style="color:var(--red)">
+      ${r&&r.status===409?'Already settled — codes are one-shot.':r&&r.status===403?'This code belongs to a different brand.':r&&r.status===401?'Sign in as this client first.':'Unknown code.'}</b></div>`;
+  }
 }
 
 async function loadReps(){

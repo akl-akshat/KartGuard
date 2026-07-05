@@ -19,8 +19,26 @@
   .wallet-hero{background:linear-gradient(135deg,#3b6ef5,#5f8bff);color:#fff;border-radius:16px;padding:20px}
   .wallet-hero .bal{font-family:var(--display);font-weight:800;font-size:30px;margin:2px 0}
   .wallet-hero .sub{opacity:.85;font-size:12.5px}
-  .scratch{position:relative;border:1px dashed var(--line-2);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px}
-  .scratch .code{font-family:var(--display);font-weight:700;letter-spacing:.06em}
+  /* coupon = boarding pass: main leg + perforation + amount stub */
+  .bpass{display:flex;border:1px solid var(--line-2);border-radius:14px;overflow:hidden;background:#fff;
+    box-shadow:var(--shadow-sm);position:relative}
+  .bpass .leg{flex:1;padding:13px 14px;min-width:0}
+  .bpass .route{display:flex;align-items:center;gap:8px}
+  .bpass .brandnm{font-family:var(--display);font-weight:800;font-size:14px}
+  .bpass .lbl{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);font-weight:600}
+  .bpass .code{font-family:var(--display);font-weight:700;letter-spacing:.09em;font-size:14px;margin-top:6px}
+  .bpass .perf{width:0;border-left:2px dashed var(--line-2);position:relative;margin:0}
+  .bpass .perf::before,.bpass .perf::after{content:"";position:absolute;left:-7px;width:12px;height:12px;
+    border-radius:50%;background:var(--bg);border:1px solid var(--line-2)}
+  .bpass .perf::before{top:-7px}.bpass .perf::after{bottom:-7px}
+  .bpass .stub{width:112px;flex:none;background:linear-gradient(135deg,#3b6ef5,#5f8bff);color:#fff;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:10px}
+  .bpass .stub .amt{font-family:var(--display);font-weight:800;font-size:19px}
+  .bpass.used{opacity:.55}
+  .bpass.used .stub{background:#93a0b8}
+  .bpass .stamp{position:absolute;top:8px;right:120px;transform:rotate(-12deg);border:2px solid var(--red);
+    color:var(--red);font-family:var(--display);font-weight:800;font-size:11px;letter-spacing:.12em;
+    padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.85)}
   .game{border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center;background:#fff}
   .game .msym{font-size:30px;color:var(--brand)}
   .game h4{margin:8px 0 3px}
@@ -252,10 +270,23 @@ async function loadWallet(){
       <span class="amt" style="color:${t.amount>=0?'var(--green)':'var(--ink)'}">${t.amount>=0?'+':''}₹${Math.abs(t.amount).toFixed(2)}</span></div>`;
   }).join(''):'<div class="empty tiny">No transactions yet — refunds land here automatically.</div>';
   $('#couponList').innerHTML=wallet.coupons.length?wallet.coupons.map(c=>`
-    <div class="scratch"><span class="msym" style="color:var(--brand)">confirmation_number</span>
-      <div class="grow"><div class="tiny muted">${esc(c.brand)} coupon · ₹${c.amount.toFixed(0)}</div>
-      <div class="code">${c.masked?'••••-••••-••••':esc(c.code)}</div></div>
-      ${c.masked?`<button class="btn btn-sm" onclick="reveal('${esc(c.code)}')">👁 Scratch</button>`:'<span class="pill green">ready</span>'}</div>`).join('')
+    <div class="bpass ${c.settled?'used':''}">
+      ${c.settled?'<div class="stamp">USED</div>':''}
+      <div class="leg">
+        <div class="route"><span class="msym" style="color:var(--brand);font-size:18px">confirmation_number</span>
+          <span class="brandnm">${esc(c.brand)}</span><span class="lbl">· coupon pass</span></div>
+        <div class="lbl" style="margin-top:8px">Code</div>
+        <div class="code">${c.masked?'••••-••••-••••':esc(c.code)}</div>
+      </div>
+      <div class="perf"></div>
+      <div class="stub">
+        <span class="lbl" style="color:rgba(255,255,255,.8)">Value</span>
+        <span class="amt">₹${c.amount.toFixed(0)}</span>
+        ${c.settled?'<span class="tiny">redeemed</span>'
+          : c.masked?`<button class="btn btn-sm" style="background:#fff;color:#2b56d6;border:0;margin-top:4px" onclick="reveal('${esc(c.code)}')">👁 Unlock</button>`
+          :'<span class="tiny">use at checkout</span>'}
+      </div>
+    </div>`).join('')
     :'<div class="empty tiny">No coupons yet — convert wallet balance into brand codes.</div>';
 }
 

@@ -318,21 +318,36 @@ async function loadCompanies(){
 function fileChosen(){
   const f=$('#docFile').files[0]; if(!f)return;
   if(!$('#docName').value) $('#docName').value=f.name;
-  const rd=new FileReader(); rd.onload=()=>{$('#docText').value=rd.result}; rd.readAsText(f);
+  if(/\.(md|txt|text|markdown)$/i.test(f.name)){
+    const rd=new FileReader(); rd.onload=()=>{$('#docText').value=rd.result}; rd.readAsText(f);
+  } else {
+    $('#docText').value=''; $('#docText').placeholder=`Binary document selected (${f.name}) — text will be extracted server-side (PDF/DOCX supported).`;
+  }
 }
+function fileToB64(file){ return new Promise((res,rej)=>{ const r=new FileReader();
+  r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(file); }); }
 async function uploadPolicy(){
   const name=$('#coName').value.trim(), doc=$('#docName').value.trim(), text=$('#docText').value.trim();
+  const file=$('#docFile').files[0];
   const msg=$('#upMsg');
-  if(!name||!doc||text.length<40){ msg.style.color='var(--rose)'; msg.textContent='Need a company, a document name, and at least a paragraph of policy text.'; return; }
+  if(!name||!doc||(!file&&text.length<40)){ msg.style.color='var(--rose)'; msg.textContent='Need a company, a document name, and a file or pasted policy text.'; return; }
   try{
     let co=companies.find(c=>c.name.toLowerCase()===name.toLowerCase());
     if(!co) co=await api('/api/companies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-    const out=await api(`/api/companies/${co.id}/policies`,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({doc_name:doc,text})});
+    msg.style.color='var(--muted)'; msg.textContent='Extracting & indexing…';
+    let out;
+    if(file && !/\.(md|txt|text|markdown)$/i.test(file.name)){
+      const b64=await fileToB64(file);
+      out=await api(`/api/companies/${co.id}/policies/upload`,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({doc_name:doc,content_b64:b64})});
+    } else {
+      out=await api(`/api/companies/${co.id}/policies`,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({doc_name:doc,text})});
+    }
     msg.style.color='var(--mint)'; msg.textContent=`✓ Indexed ${out.chunks} paragraphs for ${name} — their chat now answers from this policy.`;
     $('#docText').value=''; $('#docName').value=''; $('#docFile').value='';
     loadCompanies();
-  }catch(e){ msg.style.color='var(--rose)'; msg.textContent='Upload failed — check the inputs and try again.'; }
+  }catch(e){ msg.style.color='var(--rose)'; msg.textContent='Upload failed — is the file a readable PDF/DOCX?'; }
 }
 async function loadReviews(){
   const q=await api('/api/reviews'); const panel=$('#reviewsPanel'); $('#revCount').textContent=q.length;
