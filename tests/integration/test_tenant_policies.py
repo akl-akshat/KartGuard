@@ -105,8 +105,10 @@ def test_policy_question_is_answered_from_the_tenant_document(client):
 def test_tenant_isolation_same_question_different_grounding(client):
     zo = _co(client, "Zomato", "z.md", ZOMATO)
     sw = _co(client, "Swiggy", "s.md", SWIGGY)
+    # one chat per order: bind the two tenants to two different orders
     r1 = _turn(client, _sess(client, zo["id"])["id"], "what is your refund policy for bad food?")
-    r2 = _turn(client, _sess(client, sw["id"])["id"], "what is your refund policy for bad food?")
+    r2 = _turn(client, _sess(client, sw["id"], order="EVO-DEFECT-COD")["id"],
+               "what is your refund policy for bad food?")
     assert "Zomato" in r1["messages"][0]["text"] and "Swiggy" not in r1["messages"][0]["text"]
     assert "Swiggy" in r2["messages"][0]["text"] and "wallet" in r2["messages"][0]["text"].lower()
 

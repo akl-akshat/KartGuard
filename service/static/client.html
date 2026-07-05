@@ -32,6 +32,7 @@
     <nav class="sb-nav" id="nav">
       <a data-v="overview" class="on"><span class="msym">grid_view</span> Overview</a>
       <a data-v="complaints"><span class="msym">support_agent</span> Solve complaints <span class="sb-badge" id="qBadge" style="display:none">0</span></a>
+      <a data-v="records"><span class="msym">receipt_long</span> Records</a>
       <a data-v="orders"><span class="msym">package_2</span> Order database</a>
       <a data-v="policies"><span class="msym">menu_book</span> Policies</a>
       <a data-v="team"><span class="msym">groups</span> Team</a>
@@ -86,6 +87,15 @@
     <!-- COMPLAINTS -->
     <div class="content" id="v-complaints" style="display:none">
       <div id="queue"></div>
+    </div>
+
+    <!-- RECORDS -->
+    <div class="content" id="v-records" style="display:none">
+      <div class="card">
+        <div class="card-h"><h3>Returns &amp; refunds ledger</h3>
+          <span class="tiny muted">every case on your orders — resolutions, amounts, ratings</span></div>
+        <div class="card-b" id="recordsList"></div>
+      </div>
     </div>
 
     <!-- ORDERS -->
@@ -148,6 +158,7 @@ function ago(ts){ if(!ts) return ''; const s=Date.now()/1000-ts; if(s<60)return 
   const m=s/60; if(m<60)return Math.floor(m)+'m'; const h=m/60; if(h<24)return Math.floor(h)+'h'; return Math.floor(h/24)+'d'; }
 
 const TITLES={overview:['Overview','This week at a glance'],complaints:['Solve complaints','Cases the agent routed to your team'],
+  records:['Records','Returns, refunds and how customers rated the handling'],
   orders:['Order database','Your (mock) order feed on the platform'],policies:['Policies','The document that grounds every reply'],
   team:['Team','Representatives & availability']};
 function show(v){
@@ -171,7 +182,23 @@ function pickCompany(id){
   $('#coMark').textContent=CO.name[0].toUpperCase(); $('#sbAv').textContent=CO.name[0].toUpperCase();
   refresh();
 }
-async function refresh(){ if(!CO) return; loadStats(); loadQueue(); loadOrders(); loadDocs(); loadReps(); }
+async function refresh(){ if(!CO) return; loadStats(); loadQueue(); loadOrders(); loadDocs(); loadReps(); loadRecords(); }
+
+async function loadRecords(){
+  const rows=await api(`/api/companies/${CO.id}/records`).catch(()=>[]);
+  const pill=s=> s==='resolved'?'<span class="pill green">resolved</span>'
+    : s==='denied'?'<span class="pill gray">denied</span>'
+    : s==='escalated'?'<span class="pill amber">with team</span>'
+    : '<span class="pill blue">open</span>';
+  $('#recordsList').innerHTML=rows.length?rows.map(r=>`<div class="row">
+      <div class="ic">${r.action_type? (r.action_type.includes('refund')?'↩️':r.action_type.includes('exchange')?'🔁':'📦') : '🧾'}</div>
+      <div class="main"><div class="t">${esc(r.title||'—')}</div>
+        <div class="s">${esc(r.customer_id)} · ${r.order_id||'no order'} · ${(r.action_type||'no action yet').replace(/_/g,' ')}</div></div>
+      ${r.amount?`<span class="amt">₹${Number(r.amount).toFixed(0)}</span>`:''}
+      ${r.rated?'<span class="pill violet">rated</span>':''}
+      ${pill(r.status)}</div>`).join('')
+    :'<div class="empty"><span class="msym">receipt_long</span><h4>No cases yet</h4><div class="muted tiny">Resolutions on your orders appear here automatically.</div></div>';
+}
 
 async function loadStats(){
   const s=await api(`/api/companies/${CO.id}/stats/weekly`).catch(()=>null); if(!s) return;
@@ -296,7 +323,20 @@ async function loadReps(){
 }
 async function addRep(){
   const n=$('#rName').value.trim(); if(n.length<2) return;
-  await P(`/api/companies/${CO.id}/reps`,{name:n}); $('#rName').value=''; loadReps();
+  try{
+    const out=await P(`/api/companies/${CO.id}/reps`,{name:n});
+    $('#rName').value=''; loadReps();
+    const c=out.credentials||{};
+    const box=document.createElement('div');
+    box.className='case'; box.style.marginTop='10px'; box.style.borderColor='var(--brand)';
+    box.innerHTML=`<b>Hand these to ${esc(out.name)} — shown once:</b>
+      <div class="kv">Login ID: <b>${esc(c.login_id||'—')}</b> &nbsp;·&nbsp; Password: <b>${esc(c.password||'—')}</b></div>
+      <div class="tiny faint">They sign in at the main page as “Rep”.</div>`;
+    $('#repList').parentNode.appendChild(box);
+    setTimeout(()=>box.remove(), 30000);
+  }catch(r){
+    if(r && r.status===401) alert('Sign in as this client (or admin) from the login page first — employee credentials are issued under your account.');
+  }
 }
 async function toggleRep(id,av){ await P(`/api/reps/${id}/availability`,{available:av==='true'||av===true}); loadReps(); }
 async function logout(){ await P('/api/auth/logout'); location.href='/'; }

@@ -101,9 +101,12 @@ def test_refund_question_after_resolution_reports_it(client):
     _turn(client, s["id"], evidence={"ref": "demo-clear-1"})
     done = _turn(client, s["id"], "yes go ahead")
     assert done["status"] == "resolved"
-    s2 = _sess(client, u["id"], zo["id"])
-    r = _turn(client, s2["id"], "where is my refund")
-    assert "has been processed" in r["messages"][0]["text"]
+    # one chat per order: tracking happens in the SAME (now locked) conversation
+    r = _turn(client, s["id"], "where is my refund")
+    assert "is confirmed" in r["messages"][0]["text"]
+    # and a duplicate chat for the same order is refused with a pointer to this one
+    dup = client.post("/api/sessions", json={"customer_id": u["id"], "order_id": zo["id"]})
+    assert dup.status_code == 409 and dup.json()["detail"]["session_id"] == s["id"]
 
 
 def test_refund_question_while_escalated_says_with_specialists(client):

@@ -348,6 +348,12 @@ const App = {
     const params = new URLSearchParams(location.search);
     const cid = params.get('c') || (this.pusers[0] || this.customers[0]).id;
     await this.switchCustomer(cid, params.get('s'), true);
+    // deep link from the dashboard: open (or start) THE conversation for an order
+    const wantOrder = params.get('order');
+    if(wantOrder && !this.activeId){
+      const ex = this.sessions.find(x=>x.order_id===wantOrder);
+      if(ex) await this.openSession(ex.id); else await this.createSession(wantOrder);
+    }
   },
 
   /* ---------- account ---------- */
@@ -467,9 +473,17 @@ const App = {
     } else if(s.phase==='confirming'){
       chips=[{l:'Yes, go ahead',a:'text',c:'yes'},{l:'No',a:'text',c:'no'},{l:'Talk to a human',a:'human',c:''}];
     } else if(s.status==='escalated'){
-      chips=[{l:'Thanks',a:'text',c:''}];
+      chips=[{l:"What's the status?",a:'text',c:''},{l:'Talk to a human',a:'human',c:''}];
     } else if(s.status==='resolved'||s.status==='denied'){
-      chips=[{l:'Thanks!',a:'text',c:''},{l:'Start a new request',a:'new',c:''}];
+      chips=[{l:"Track my request",a:'text',c:''},{l:'Talk to a human',a:'human',c:''},{l:'New request (other order)',a:'new',c:''}];
+      if(s.company_id && !s.rated){
+        const co=this.companies.find(c=>c.id===s.company_id);
+        chips=[...[1,2,3,4,5].map(n=>({l:'★'.repeat(n),a:'rate:'+n,c:n>=4?'yes':''})), ...chips];
+        setTimeout(()=>{ const q=$('#quick'); if(q && !q.dataset.ratehint){ q.dataset.ratehint='1';
+          const d=document.createElement('div'); d.className='hint'; d.style.textAlign='left';
+          d.textContent=`How did ${co?co.name:'the brand'} handle this? Your rating is anonymous and helps other customers.`;
+          q.parentNode.insertBefore(d,q); } },0);
+      }
     } else if(s.order_id){
       chips=[{l:"It doesn't fit"},{l:'It arrived damaged'},{l:'Wrong item'},
              {l:'I changed my mind'},{l:"Where's my refund?"}].map(x=>({...x,a:'text',c:''}));
@@ -486,7 +500,21 @@ const App = {
     if(a==='ev:weak') return this.sendEvidence('weak');
     if(a==='human') return this.send('I would like to talk to a human, please');
     if(a==='new') return this.openNew();
+    if(a.startsWith('rate:')) return this.rate(parseInt(a.slice(5),10));
+    if(x.l==='Track my request'||x.l==="What's the status?") return this.send("What's the status of my request?");
     return this.send(x.l);
+  },
+  async rate(stars){
+    try{
+      await this.post(`/api/sessions/${this.session.id}/rate`, {stars});
+      this.session.rated=true;
+      const hint=document.querySelector('.composer-inner .hint[style]'); if(hint) hint.remove();
+      this.renderQuick();
+      const inner=$('#threadInner'); const d=document.createElement('div');
+      d.className='inline-err'; d.style.background='var(--accent-soft)'; d.style.borderColor='var(--accent-line)'; d.style.color='var(--accent)';
+      d.innerHTML=`<span class="msym">favorite</span><span>Thanks — your ${'★'.repeat(stars)} rating was recorded anonymously.</span>`;
+      inner.appendChild(d); this.scroll(); setTimeout(()=>d.remove(), 5000);
+    }catch(e){ this.session.rated=true; this.renderQuick(); }
   },
 
   async send(preset){
@@ -610,11 +638,14 @@ const App = {
     if(this.orders.length){
       html += `<div class="modal-sep">${this.isPlatform()?'Your orders — every brand, one account':'Your orders'}</div>`;
       html += this.orders.map(o=>{
-        const win = o.returnable ? (o.within_window?'<span class="tag done"><span class="dot"></span>Returnable</span>'
+        const existing=this.sessions.find(x=>x.order_id===o.id);
+        const win = existing ? '<span class="tag review"><span class="dot"></span>Conversation exists — open it</span>'
+          : o.returnable ? (o.within_window?'<span class="tag done"><span class="dot"></span>Returnable</span>'
           :'<span class="tag closed"><span class="dot"></span>Window closed</span>')
           : '<span class="tag await"><span class="dot"></span>Final sale</span>';
         const brand = o.brand ? `<span class="tag review" style="margin-right:6px"><span class="dot"></span>${this.esc(o.brand)}</span>` : '';
-        return `<button class="pick" onclick="App.createSession('${o.id}')">
+        const act = existing ? `App.closeNew();App.openSession('${existing.id}')` : `App.createSession('${o.id}')`;
+        return `<button class="pick" ${existing?'style="opacity:.75"':''} onclick="${act}">
           <div class="pic">${o.emoji}</div>
           <div class="pmain"><div class="ptitle">${this.esc(o.title)}</div>
             <div class="pmeta">${brand}${o.category} &middot; delivered ${o.delivery_date||'—'} &nbsp; ${win}</div></div>
@@ -650,8 +681,21 @@ const App = {
     const sel=document.getElementById('providerSel');
     const companyId=(sel && sel.value)||null;
     this.closeNew();
+    // one conversation per order — if one exists, open it instead of duplicating
+    if(orderId){
+      const existing=this.sessions.find(x=>x.order_id===orderId);
+      if(existing) return this.openSession(existing.id);
+    }
     try{
-      const s=await this.post('/api/sessions', {customer_id:this.cust.id, order_id:orderId, company_id:companyId});
+      const resp=await fetch('/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({customer_id:this.cust.id, order_id:orderId, company_id:companyId})});
+      if(resp.status===409){
+        const d=await resp.json();
+        const sid=d.detail && d.detail.session_id;
+        if(sid){ await this.refreshSessions(); return this.openSession(sid); }
+      }
+      if(!resp.ok) throw new Error(resp.status);
+      const s=await resp.json();
       this.sessions.unshift({id:s.id, title:s.title, order_id:s.order_id, status:s.status, phase:s.phase,
         updated_at:s.updated_at, last_message:(s.messages.at(-1)||{}).text||''});
       this.session=s; this.activeId=s.id;

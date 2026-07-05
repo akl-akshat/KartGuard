@@ -47,6 +47,11 @@
     <div class="field">
       <label id="idLabel">Your account (demo — phone number is your ID)</label>
       <select id="ident" class="input"></select>
+      <input id="loginId" class="input" style="display:none" autocomplete="username" placeholder="Login ID">
+    </div>
+    <div class="field" id="pwField" style="display:none;margin-top:10px">
+      <label>Password</label>
+      <input id="pw" class="input" type="password" autocomplete="current-password" placeholder="••••••••">
     </div>
     <div class="hintline" id="hint"></div>
 
@@ -75,46 +80,45 @@ document.getElementById('roles').addEventListener('click', e=>{
   role=el.dataset.role; render();
 });
 async function render(){
-  const sel=$('#ident'), lb=$('#idLabel'), hint=$('#hint');
+  const sel=$('#ident'), idIn=$('#loginId'), pwF=$('#pwField'), lb=$('#idLabel'), hint=$('#hint');
+  const staff = role!=='customer';
+  sel.style.display = staff ? 'none' : '';
+  idIn.style.display = staff ? '' : 'none';
+  pwF.style.display = staff ? '' : 'none';
   if(role==='customer'){
     lb.textContent='Your account (demo — phone number is your ID)';
     sel.innerHTML=data.customers.map(u=>`<option value="${u.id}">${u.name} · 📱 ${u.phone}</option>`).join('');
     hint.textContent='One login for all your brands — Zomato, Swiggy, Amazon and more.';
-    sel.disabled=false;
   } else if(role==='client'){
-    lb.textContent='Your company';
-    sel.innerHTML=data.companies.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-    hint.textContent='Manage complaints, orders, policies and your support team.';
-    sel.disabled=false;
+    lb.textContent='Company login ID';
+    idIn.placeholder='e.g. swiggy';
+    hint.textContent='Issued by the platform admin when your company was registered. Demo: swiggy / swiggy123.';
   } else if(role==='rep'){
-    lb.textContent='Representative';
-    let reps=[];
-    for(const c of data.companies){
-      try{ const rr=await api(`/api/companies/${c.id}/reps`); rr.forEach(r=>reps.push({...r, brand:c.name})); }catch(e){}
-    }
-    sel.innerHTML=reps.length?reps.map(r=>`<option value="${r.id}">${r.name} — ${r.brand}</option>`).join('')
-      :'<option value="">No representatives yet</option>';
-    hint.textContent='You will see only the complaints assigned to you.';
-    sel.disabled=!reps.length;
+    lb.textContent='Employee login ID';
+    idIn.placeholder='e.g. arjun';
+    hint.textContent='Issued by your company. Demo: arjun / rep123.';
   } else {
-    lb.textContent='Platform administrator';
-    sel.innerHTML='<option value="admin">Platform Admin</option>';
-    hint.textContent='Global view: every client, every case, platform health.';
-    sel.disabled=false;
+    lb.textContent='Admin login ID';
+    idIn.placeholder='admin';
+    hint.textContent='Demo: admin / admin123.';
   }
 }
 async function login(){
-  const id=$('#ident').value;
+  const staff = role!=='customer';
+  const id = staff ? $('#loginId').value.trim() : $('#ident').value;
+  const password = staff ? $('#pw').value : '';
+  if(staff && (!id || !password)){ $('#hint').textContent='Enter your login ID and password.'; return; }
   try{
     const out=await api('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({role, id})});
+      body:JSON.stringify({role, id, password})});
     const url = role==='customer' ? `${out.redirect}?u=${encodeURIComponent(out.id)}`
               : role==='client'   ? `${out.redirect}?co=${encodeURIComponent(out.id)}`
               : role==='rep'      ? `${out.redirect}?rep=${encodeURIComponent(out.id)}`
               : out.redirect;
     location.href=url;
-  }catch(e){ $('#hint').textContent='Could not sign in — is the identity valid?'; }
+  }catch(e){ $('#hint').textContent = staff ? 'Invalid ID or password.' : 'Could not sign in — is the identity valid?'; }
 }
+document.addEventListener('keydown',e=>{ if(e.key==='Enter') login(); });
 boot();
 </script>
 </body>

@@ -197,9 +197,11 @@ async function boot(){
 
 async function loadOrders(){
   const orders=await api(`/api/platform/users/${U.id}/orders`).catch(()=>[]);
+  const rating=o=>{ const co=brands.find(b=>b.name===o.brand);
+    return (co && co.rating)?` · <span style="color:var(--amber)">★ ${co.rating}</span>`:''; };
   const card=o=>`<div class="ocard" onclick="location.href='/chat?c=${U.id}&order=${o.id}'">
     <div class="top"><div class="em">${o.emoji}</div>
-      <div><div class="t">${esc(o.title)}</div><div class="tiny muted">${esc(o.brand||'')} · ₹${Number(o.price).toFixed(0)}</div></div></div>
+      <div><div class="t">${esc(o.title)}</div><div class="tiny muted">${esc(o.brand||'')}${rating(o)} · ₹${Number(o.price).toFixed(0)}</div></div></div>
     <div class="meta"><span class="pill ${o.within_window?'green':'gray'}"><span class="dot"></span>${o.within_window?'Return window open':'Window closed'}</span>
       <span class="tiny faint right">${esc(o.delivery_date||'')}</span></div></div>`;
   $('#homeOrders').innerHTML=orders.slice(0,6).map(card).join('');

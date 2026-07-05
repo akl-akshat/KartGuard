@@ -154,6 +154,31 @@ h1,h2,h3{font-family:var(--display);font-weight:800;letter-spacing:-.02em;line-h
     <h1>Returns operations</h1>
     <p class="lede">What the agent resolved automatically — and the consequential cases routed to you.</p>
     <div class="cards" id="cards"></div>
+    <div class="grid" style="grid-template-columns:1.2fr 1fr;margin-bottom:20px">
+      <div class="panel glass">
+        <div class="panel-h"><h2>Register a client company</h2><span class="pill violet">admin only</span></div>
+        <div class="body">
+          <p style="margin:0 0 12px;color:var(--muted);font-size:13px">Full onboarding in one step: the company,
+            its policy document (indexed for the agent), and the client's <b>login credentials</b> — generated
+            here, handed over once. The client then adds employees and orders themselves.</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+            <input id="rcName" placeholder="Company name (e.g. Myntra)" style="background:var(--glass);border:1px solid var(--line);border-radius:10px;color:var(--ink);font:inherit;font-size:13px;padding:9px 12px">
+            <input id="rcDoc" placeholder="Policy doc name (returns.md)" style="background:var(--glass);border:1px solid var(--line);border-radius:10px;color:var(--ink);font:inherit;font-size:13px;padding:9px 12px">
+          </div>
+          <textarea id="rcText" rows="4" placeholder="Paste the company's returns/refund policy…"
+            style="width:100%;margin-top:9px;background:var(--glass);border:1px solid var(--line);border-radius:10px;color:var(--ink);font:inherit;font-size:12.5px;padding:9px 12px;resize:vertical"></textarea>
+          <div style="margin-top:9px;display:flex;gap:10px;align-items:center">
+            <button class="btn btn-primary" style="padding:8px 16px;font-size:13px" onclick="registerClient()">Register client</button>
+            <span style="font-size:12px;min-height:16px" id="rcMsg"></span>
+          </div>
+          <div id="rcCreds"></div>
+        </div>
+      </div>
+      <div class="panel glass">
+        <div class="panel-h"><h2>Customer credibility</h2><span class="pill violet">governance</span></div>
+        <div class="body" id="credList"><div class="empty" style="padding:14px">Sign in as admin to govern scores.</div></div>
+      </div>
+    </div>
     <div class="panel glass" style="margin-bottom:20px">
       <div class="panel-h"><h2>Tenant policies</h2><span class="count" id="coCount">0</span></div>
       <div class="body">
@@ -243,6 +268,42 @@ async function loadRecent(){
        <span class="pill ${a==='deny_with_explanation'?'dim':'mint'}">${a.replace(/_/g,' ')}</span></div>`;
   }).join(''):`<div class="empty" style="padding:18px"><div class="i">🗂️</div>No resolutions yet</div>`;
 }
+async function registerClient(){
+  const name=$('#rcName').value.trim(), doc=$('#rcDoc').value.trim()||'policy.md', text=$('#rcText').value.trim();
+  const m=$('#rcMsg');
+  if(name.length<2||text.length<40){ m.style.color='var(--rose)'; m.textContent='Company name + a real policy required.'; return; }
+  const r=await fetch('/api/admin/companies',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name,doc_name:doc,policy_text:text})});
+  if(r.status===401||r.status===403){ m.style.color='var(--rose)'; m.textContent='Sign in as admin first (login page → Admin → admin/admin123).'; return; }
+  if(!r.ok){ m.style.color='var(--rose)'; m.textContent='Registration failed.'; return; }
+  const out=await r.json();
+  m.style.color='var(--mint)'; m.textContent=`✓ ${out.company.name} live — ${out.policy.chunks} policy paragraphs indexed.`;
+  $('#rcCreds').innerHTML=`<div class="esc" style="margin-top:10px;border-color:var(--mint)">
+    <b>Client credentials — shown once, hand them over:</b>
+    <div style="font-family:var(--label);margin-top:6px">Login ID: <b>${out.credentials.login_id}</b> · Password: <b>${out.credentials.password}</b></div>
+    <div style="font-size:11.5px;color:var(--faint);margin-top:4px">They sign in at the main page as “Client”, then add employees and orders.</div></div>`;
+  $('#rcName').value=''; $('#rcText').value='';
+  loadCompanies();
+}
+async function loadCred(){
+  const r=await fetch('/api/admin/customers');
+  if(!r.ok){ return; }
+  const rows=await r.json();
+  const col=s=> s>=0.55?'var(--mint)':s>=0.3?'var(--amber)':'var(--rose)';
+  $('#credList').innerHTML=rows.map(u=>`<div class="rec-row">
+      <span style="font-weight:600">${u.name}</span><span class="rc">📱 ${u.phone} · denied ${u.denied} · false ${u.false}</span>
+      <b style="color:${col(u.score)}">${Number(u.score).toFixed(2)}</b>
+      <input type="number" min="0" max="1" step="0.05" value="${Number(u.score).toFixed(2)}" id="sc-${u.id}"
+        style="width:70px;background:var(--glass);border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit;font-size:12px;padding:4px 6px">
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px" onclick="setScore('${u.id}')">set</button>
+    </div>`).join('');
+}
+async function setScore(uid){
+  const v=parseFloat($('#sc-'+uid).value);
+  await fetch(`/api/admin/customers/${uid}/score`,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({score:v})});
+  loadCred();
+}
 let companies=[];
 async function loadCompanies(){
   try{ companies=await api('/api/companies'); }catch(e){ companies=[]; }
@@ -307,7 +368,7 @@ async function decide(id,decision,modified){
 }
 function modify(id){const at=prompt('Modified action_type (e.g. partial_refund):');if(!at)return;
   const amt=parseFloat(prompt('Amount (₹):','0'))||0; decide(id,'modify',{action_type:at,amount:amt,params:{}});}
-function refresh(){loadMetrics();loadQueue();loadRecent();loadReviews();loadCompanies()}
+function refresh(){loadMetrics();loadQueue();loadRecent();loadReviews();loadCompanies();loadCred()}
 refresh(); setInterval(refresh,6000);
 </script>
 </body>

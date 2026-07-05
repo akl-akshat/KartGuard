@@ -145,14 +145,14 @@ def test_assignment_scopes_the_rep_queue(client):
 # ----------------------------------------------------------- RBAC routing
 def test_role_logins_route_to_role_dashboards(client):
     u = _me(client)
-    cos = {c["name"]: c["id"] for c in client.get("/api/companies").json()}
-    rep = client.get(f"/api/companies/{cos['Swiggy']}/reps").json()[0]
     P = lambda b: client.post("/api/auth/login", json=b)  # noqa: E731
+    # customers use the demo phone identity; staff roles authenticate with issued credentials
     assert P({"role": "customer", "id": u["id"]}).json()["redirect"] == "/app"
-    assert P({"role": "client", "id": cos["Swiggy"]}).json()["redirect"] == "/client"
-    assert P({"role": "rep", "id": rep["id"]}).json()["redirect"] == "/rep"
-    assert P({"role": "admin", "id": ""}).json()["redirect"] == "/admin"
-    assert P({"role": "rep", "id": "REP-NOPE"}).status_code == 404
+    assert P({"role": "client", "id": "swiggy", "password": "swiggy123"}).json()["redirect"] == "/client"
+    assert P({"role": "rep", "id": "arjun", "password": "rep123"}).json()["redirect"] == "/rep"
+    assert P({"role": "admin", "id": "admin", "password": "admin123"}).json()["redirect"] == "/admin"
+    assert P({"role": "rep", "id": "REP-NOPE", "password": "x"}).status_code == 401
+    assert P({"role": "client", "id": "swiggy", "password": "wrong"}).status_code == 401
 
 
 def test_role_pages_are_served(client):
