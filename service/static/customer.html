@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ReturnGuard — My Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20,400,0,0&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/app.css">
+<style>
+  .order-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+  .ocard{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff;transition:.15s;cursor:pointer}
+  .ocard:hover{border-color:#cdd7ee;box-shadow:var(--shadow)}
+  .ocard .top{display:flex;align-items:center;gap:10px}
+  .ocard .em{width:40px;height:40px;border-radius:10px;background:#f1f4fa;display:grid;place-items:center;font-size:19px}
+  .ocard .t{font-weight:600;font-size:13.5px;line-height:1.3}
+  .ocard .meta{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .wallet-hero{background:linear-gradient(135deg,#3b6ef5,#5f8bff);color:#fff;border-radius:16px;padding:20px}
+  .wallet-hero .bal{font-family:var(--display);font-weight:800;font-size:30px;margin:2px 0}
+  .wallet-hero .sub{opacity:.85;font-size:12.5px}
+  .scratch{position:relative;border:1px dashed var(--line-2);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px}
+  .scratch .code{font-family:var(--display);font-weight:700;letter-spacing:.06em}
+  .game{border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center;background:#fff}
+  .game .msym{font-size:30px;color:var(--brand)}
+  .game h4{margin:8px 0 3px}
+  .game p{margin:0 0 12px;color:var(--muted);font-size:12.5px}
+  .updates .row .ic{font-size:15px}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#1a2233;color:#fff;
+    padding:11px 18px;border-radius:12px;font-size:13.5px;box-shadow:0 12px 40px -10px rgba(0,0,0,.4);
+    opacity:0;pointer-events:none;transition:.25s;z-index:200}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sb-brand"><div class="mark">R</div><div><div class="nm">ReturnGuard</div><span class="sub">My account</span></div></div>
+    <div class="sb-sec">Menu</div>
+    <nav class="sb-nav" id="nav">
+      <a data-v="home" class="on"><span class="msym">grid_view</span> Home</a>
+      <a data-v="orders"><span class="msym">package_2</span> My orders</a>
+      <a data-v="conversations"><span class="msym">forum</span> Conversations <span class="sb-badge" id="convBadge" style="display:none">0</span></a>
+      <a data-v="wallet"><span class="msym">account_balance_wallet</span> Wallet</a>
+      <a data-v="rewards"><span class="msym">featured_seasonal_and_gifts</span> Rewards</a>
+    </nav>
+    <div class="sb-foot">
+      <nav class="sb-nav">
+        <a onclick="logout()"><span class="msym">logout</span> Log out</a>
+      </nav>
+      <div class="sb-user"><div class="av" id="sbAv">··</div><div><div class="nm" id="sbNm">…</div><div class="rl" id="sbPh"></div></div></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div><h1 id="pageTitle">Home</h1><div class="sub" id="pageSub">Everything across your brands, one place</div></div>
+      <div class="icons">
+        <button class="ico-btn" onclick="show('conversations')" title="Conversations"><span class="msym">chat</span><span class="dot" id="notifDot" style="display:none"></span></button>
+        <button class="ico-btn" onclick="show('wallet')" title="Wallet"><span class="msym">account_balance_wallet</span></button>
+      </div>
+    </div>
+
+    <!-- HOME -->
+    <div class="content rail" id="v-home">
+      <div class="stack">
+        <div class="card">
+          <div class="card-h"><h3>Need help with an order?</h3><span class="pill blue"><span class="dot"></span>Agent online</span></div>
+          <div class="card-b">
+            <div class="order-grid" id="homeOrders"></div>
+            <div class="empty" id="homeOrdersEmpty" style="display:none"><span class="msym">package_2</span><h4>No orders yet</h4><div class="muted tiny">Orders from your brands appear here automatically.</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Your open conversations</h3><a class="btn btn-sm btn-ghost" onclick="show('conversations')">View all</a></div>
+          <div class="card-b" id="homeConvs"></div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="wallet-hero">
+          <div class="sub">ReturnGuard balance · earns 2% p.a. just sitting here</div>
+          <div class="bal" id="heroBal">₹0</div>
+          <div class="flex mt-s">
+            <button class="btn btn-sm" style="background:#fff;color:#2b56d6;border:0" onclick="show('wallet')">Open wallet</button>
+            <button class="btn btn-sm" style="background:rgba(255,255,255,.16);color:#fff;border:0" onclick="show('rewards')">Play &amp; win</button>
+          </div>
+        </div>
+        <div class="card updates">
+          <div class="card-h"><h3>Updates</h3><span class="msym">notifications</span></div>
+          <div class="card-b" id="updates"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div class="content" id="v-orders" style="display:none">
+      <div class="card"><div class="card-h"><h3>All orders — every brand</h3></div>
+        <div class="card-b"><div class="order-grid" id="allOrders"></div></div></div>
+    </div>
+
+    <!-- CONVERSATIONS -->
+    <div class="content" id="v-conversations" style="display:none">
+      <div class="card"><div class="card-h"><h3>Conversations</h3>
+        <a class="btn btn-sm btn-primary" id="chatLink" href="/chat"><span class="msym">forum</span> Open support chat</a></div>
+        <div class="card-b" id="convList"></div></div>
+    </div>
+
+    <!-- WALLET -->
+    <div class="content rail" id="v-wallet" style="display:none">
+      <div class="stack">
+        <div class="card">
+          <div class="card-h"><h3>Transactions</h3></div>
+          <div class="card-b" id="txns"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>My brand coupons</h3><span class="tiny muted">tap to scratch &amp; reveal</span></div>
+          <div class="card-b stack" id="couponList" style="gap:10px"></div>
+        </div>
+      </div>
+      <div class="stack">
+        <div class="wallet-hero">
+          <div class="sub">Available balance</div>
+          <div class="bal" id="walletBal">₹0</div>
+          <div class="sub" id="kycState">KYC pending — needed once for withdrawals</div>
+        </div>
+        <div class="card"><div class="card-b stack" style="gap:12px">
+          <div class="field"><label>Amount (₹)</label><input class="input" id="amt" type="number" min="1" placeholder="e.g. 200"></div>
+          <div class="flex wrap">
+            <button class="btn" onclick="deposit()"><span class="msym">add_card</span> Deposit</button>
+            <button class="btn" onclick="withdraw()"><span class="msym">account_balance</span> Withdraw</button>
+          </div>
+          <div class="field"><label>…or convert to a brand coupon</label>
+            <select id="couponBrand" class="input"></select></div>
+          <button class="btn btn-primary" onclick="makeCoupon()"><span class="msym">confirmation_number</span> Get coupon code</button>
+          <div class="tiny faint">Withdrawing to a brand: the amount leaves your wallet when the code is created; scratch to reveal and use it at checkout.</div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- REWARDS -->
+    <div class="content" id="v-rewards" style="display:none">
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+        <div class="game"><span class="msym">rotate_right</span><h4>Spin the wheel</h4>
+          <p>One free spin daily — wallet credits &amp; brand coupons.</p>
+          <button class="btn btn-primary" onclick="spin()">Spin now</button>
+          <div class="tiny muted mt-s" id="spinOut"></div></div>
+        <div class="game"><span class="msym">calendar_today</span><h4>Daily reward</h4>
+          <p>Check in every day, collect a small credit.</p>
+          <button class="btn btn-primary" onclick="daily()">Claim today's</button>
+          <div class="tiny muted mt-s" id="dailyOut"></div></div>
+        <div class="game"><span class="msym">restaurant</span><h4>₹1 dinner lottery</h4>
+          <p>₹1 a ticket — daily winner takes a 5-star family dinner (3 people).</p>
+          <button class="btn btn-primary" onclick="lottery()">Play ₹1</button>
+          <div class="tiny muted mt-s" id="lotOut"></div></div>
+      </div>
+      <div class="tiny faint mt">Rewards are funded by our brand partners. Play responsibly — stakes come from your wallet.</div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const api=(u,o)=>fetch(u,o).then(r=>{ if(!r.ok) throw r; return r.json(); });
+const P=(u,b)=>api(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
+let U=null, wallet=null, brands=[];
+
+function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2600); }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function ago(ts){ if(!ts) return ''; const s=Date.now()/1000-ts; if(s<60)return 'now';
+  const m=s/60; if(m<60)return Math.floor(m)+'m ago'; const h=m/60; if(h<24)return Math.floor(h)+'h ago'; return Math.floor(h/24)+'d ago'; }
+
+const TITLES={home:['Home','Everything across your brands, one place'],orders:['My orders','Every brand, one account'],
+  conversations:['Conversations','Your support threads'],wallet:['Wallet','Refunds land here — and grow at 2% p.a.'],
+  rewards:['Rewards','A little something every day']};
+function show(v){
+  document.querySelectorAll('[id^="v-"]').forEach(x=>x.style.display='none');
+  $('#v-'+v).style.display= (v==='home'||v==='wallet') ? 'grid' : 'block';
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on', a.dataset.v===v));
+  $('#pageTitle').textContent=TITLES[v][0]; $('#pageSub').textContent=TITLES[v][1];
+  if(v==='wallet') loadWallet();
+}
+document.getElementById('nav').addEventListener('click',e=>{ const a=e.target.closest('a'); if(a&&a.dataset.v) show(a.dataset.v); });
+
+async function boot(){
+  const uid=new URLSearchParams(location.search).get('u');
+  const users=await api('/api/platform/users');
+  U=users.find(x=>x.id===uid)||users[0];
+  if(!U){ location.href='/'; return; }
+  $('#sbNm').textContent=U.name; $('#sbPh').textContent='📱 '+U.phone;
+  $('#sbAv').textContent=U.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  $('#chatLink').href='/chat?c='+U.id;
+  brands=await api('/api/companies').catch(()=>[]);
+  $('#couponBrand').innerHTML=brands.map(b=>`<option>${esc(b.name)}</option>`).join('');
+  loadOrders(); loadConvs(); loadWallet(); loadUpdates();
+}
+
+async function loadOrders(){
+  const orders=await api(`/api/platform/users/${U.id}/orders`).catch(()=>[]);
+  const card=o=>`<div class="ocard" onclick="location.href='/chat?c=${U.id}&order=${o.id}'">
+    <div class="top"><div class="em">${o.emoji}</div>
+      <div><div class="t">${esc(o.title)}</div><div class="tiny muted">${esc(o.brand||'')} · ₹${Number(o.price).toFixed(0)}</div></div></div>
+    <div class="meta"><span class="pill ${o.within_window?'green':'gray'}"><span class="dot"></span>${o.within_window?'Return window open':'Window closed'}</span>
+      <span class="tiny faint right">${esc(o.delivery_date||'')}</span></div></div>`;
+  $('#homeOrders').innerHTML=orders.slice(0,6).map(card).join('');
+  $('#homeOrdersEmpty').style.display=orders.length?'none':'block';
+  $('#allOrders').innerHTML=orders.map(card).join('');
+}
+
+async function loadConvs(){
+  const s=await api(`/api/sessions?customer_id=${U.id}`).catch(()=>[]);
+  const pill=x=> x.status==='escalated'?'<span class="pill violet"><span class="dot"></span>With specialist</span>'
+    : x.status==='resolved'?'<span class="pill green"><span class="dot"></span>Resolved</span>'
+    : x.status==='denied'?'<span class="pill gray"><span class="dot"></span>Closed</span>'
+    : (x.status==='awaiting_confirmation'||x.status==='awaiting_evidence')?'<span class="pill amber"><span class="dot"></span>Needs you</span>'
+    : '<span class="pill blue"><span class="dot"></span>Active</span>';
+  const row=x=>`<div class="row" style="cursor:pointer" onclick="location.href='/chat?c=${U.id}&s=${x.id}'">
+    <div class="ic">💬</div><div class="main"><div class="t">${esc(x.title)}</div>
+    <div class="s">${esc((x.last_message||'').replace(/[*#_`>]/g,'').slice(0,90))}</div></div>${pill(x)}</div>`;
+  const open=s.filter(x=>!['resolved','denied'].includes(x.status));
+  $('#homeConvs').innerHTML=open.length?open.slice(0,4).map(row).join(''):
+    '<div class="empty"><span class="msym">forum</span><h4>No open conversations</h4><div class="muted tiny">Pick an order above to get help in seconds.</div></div>';
+  $('#convList').innerHTML=s.length?s.map(row).join(''):'<div class="empty"><span class="msym">forum</span><h4>Nothing here yet</h4></div>';
+  const needsYou=s.filter(x=>['awaiting_confirmation','awaiting_evidence'].includes(x.status)).length;
+  $('#convBadge').style.display=needsYou?'':'none'; $('#convBadge').textContent=needsYou;
+}
+
+async function loadUpdates(){
+  const n=await api(`/api/platform/users/${U.id}/notifications`).catch(()=>[]);
+  const ic=k=> k==='human_reply'?'👤':k==='resolution'?'✅':k==='review'?'🧑‍💼':k==='proposal'?'📋':'💬';
+  $('#updates').innerHTML=n.length?n.map(x=>`<div class="row" style="cursor:pointer" onclick="location.href='/chat?c=${U.id}&s=${x.session_id}'">
+      <div class="ic">${ic(x.kind)}</div><div class="main"><div class="t">${esc(x.title)}</div>
+      <div class="s">${esc(x.text.replace(/[*#_`>]/g,'').slice(0,80))}</div></div>
+      <span class="tiny faint">${ago(x.created_at)}</span></div>`).join('')
+    :'<div class="empty tiny">No updates yet.</div>';
+  $('#notifDot').style.display=n.some(x=>x.kind==='human_reply')?'':'none';
+}
+
+async function loadWallet(){
+  wallet=await api(`/api/wallet/${U.id}`).catch(()=>null); if(!wallet) return;
+  $('#heroBal').textContent='₹'+wallet.balance.toFixed(2);
+  $('#walletBal').textContent='₹'+wallet.balance.toFixed(2);
+  $('#kycState').textContent=wallet.kyc_verified?'KYC verified ✓ — withdrawals enabled':'KYC pending — needed once for withdrawals';
+  const K={refund:['↩️','green'],deposit:['💳','blue'],withdrawal:['🏦','gray'],interest:['✨','violet'],
+    coupon:['🎟️','amber'],reward:['🎁','green'],lottery_stake:['🎫','gray'],lottery_win:['🏆','green']};
+  $('#txns').innerHTML=wallet.transactions.length?wallet.transactions.map(t=>{
+    const k=K[t.kind]||['·','gray'];
+    return `<div class="row"><div class="ic">${k[0]}</div>
+      <div class="main"><div class="t">${esc(t.note||t.kind)}</div><div class="s">${esc(t.brand||'')} ${ago(t.created_at)}</div></div>
+      <span class="amt" style="color:${t.amount>=0?'var(--green)':'var(--ink)'}">${t.amount>=0?'+':''}₹${Math.abs(t.amount).toFixed(2)}</span></div>`;
+  }).join(''):'<div class="empty tiny">No transactions yet — refunds land here automatically.</div>';
+  $('#couponList').innerHTML=wallet.coupons.length?wallet.coupons.map(c=>`
+    <div class="scratch"><span class="msym" style="color:var(--brand)">confirmation_number</span>
+      <div class="grow"><div class="tiny muted">${esc(c.brand)} coupon · ₹${c.amount.toFixed(0)}</div>
+      <div class="code">${c.masked?'••••-••••-••••':esc(c.code)}</div></div>
+      ${c.masked?`<button class="btn btn-sm" onclick="reveal('${esc(c.code)}')">👁 Scratch</button>`:'<span class="pill green">ready</span>'}</div>`).join('')
+    :'<div class="empty tiny">No coupons yet — convert wallet balance into brand codes.</div>';
+}
+
+async function deposit(){ const a=parseFloat($('#amt').value); if(!a) return toast('Enter an amount first');
+  await P(`/api/wallet/${U.id}/deposit`,{amount:a}); toast('Deposited ₹'+a.toFixed(0)); loadWallet(); }
+async function withdraw(){
+  const a=parseFloat($('#amt').value); if(!a) return toast('Enter an amount first');
+  try{ await P(`/api/wallet/${U.id}/withdraw`,{amount:a}); toast('Withdrawal of ₹'+a.toFixed(0)+' on its way'); }
+  catch(r){
+    if(r.status===412){ if(confirm('One-time KYC needed for withdrawals. Complete instant demo-KYC now?')){
+        await P(`/api/wallet/${U.id}/kyc`); await P(`/api/wallet/${U.id}/withdraw`,{amount:a}).then(()=>toast('KYC done · ₹'+a.toFixed(0)+' withdrawn')).catch(()=>toast('Balance too low')); } }
+    else toast('Balance too low'); }
+  loadWallet(); }
+async function makeCoupon(){
+  const a=parseFloat($('#amt').value); if(!a) return toast('Enter an amount first');
+  try{ const out=await P(`/api/wallet/${U.id}/coupon`,{brand:$('#couponBrand').value,amount:a});
+    toast('Coupon created — scratch it below'); loadWallet(); }
+  catch(e){ toast('Balance too low for that coupon'); } }
+async function reveal(code){
+  try{ const res=await P(`/api/wallet/${U.id}/coupon/${encodeURIComponent(code)}/reveal`);
+    toast(`${res.brand} code revealed: ${res.code}`); }catch(e){}
+  loadWallet();
+}
+async function spin(){ try{ const o=await P(`/api/wallet/${U.id}/spin`);
+    $('#spinOut').textContent=o.ok?('You won: '+o.prize):'Come back tomorrow!'; loadWallet(); }catch(e){} }
+async function daily(){ try{ const o=await P(`/api/wallet/${U.id}/daily`);
+    $('#dailyOut').textContent=o.ok?('₹'+o.amount+' added to your wallet'):'Already claimed today — see you tomorrow!'; loadWallet(); }catch(e){} }
+async function lottery(){ try{ const o=await P(`/api/wallet/${U.id}/lottery`,{lottery:'dinner'});
+    $('#lotOut').textContent=o.won?('🏆 YOU WON: '+o.prize+'!'):'Not this time — 1 in '+o.odds.toLocaleString()+' wins daily.'; loadWallet(); }
+  catch(e){ $('#lotOut').textContent='Add ₹1 to your wallet first.'; } }
+async function logout(){ await P('/api/auth/logout'); location.href='/'; }
+boot();
+</script>
+</body>
+</html>

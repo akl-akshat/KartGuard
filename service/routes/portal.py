@@ -8,13 +8,23 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from agent.deps import get_deps
 from policies.retrieve import within_return_window
 
 router = APIRouter()
 _STATIC = Path(__file__).resolve().parents[1] / "static"
+
+
+def _page(name: str) -> str:
+    return (_STATIC / name).read_text(encoding="utf-8")
+
+
+@router.get("/ui/app.css")
+def app_css() -> FileResponse:
+    """The one shared light design system, linked by every portal."""
+    return FileResponse(_STATIC / "app.css", media_type="text/css")
 
 # Demo "signed-in" customers, mapped to seeded profiles. The customer UI never shows risk.
 DEMO_CUSTOMERS = [
@@ -29,29 +39,47 @@ _EMOJI = {"apparel": "👕", "footwear": "👟", "electronics": "🎧", "home": 
 
 
 @router.get("/", response_class=HTMLResponse)
+def login_page() -> str:
+    """Entry point: pick a role and identity (RBAC), then route to that dashboard."""
+    return _page("login.html")
+
+
+@router.get("/marketing", response_class=HTMLResponse)
 def landing() -> str:
-    return (_STATIC / "landing.html").read_text(encoding="utf-8")
+    return _page("landing.html")
+
+
+@router.get("/app", response_class=HTMLResponse)
+def customer_app() -> str:
+    """Customer home: orders + conversations, wallet & rewards, notifications."""
+    return _page("customer.html")
 
 
 @router.get("/chat", response_class=HTMLResponse)
 def customer_portal() -> str:
-    return (_STATIC / "chat.html").read_text(encoding="utf-8")
+    return _page("chat.html")
 
 
 @router.get("/admin", response_class=HTMLResponse)
 def operator_console() -> str:
-    return (_STATIC / "admin.html").read_text(encoding="utf-8")
+    return _page("admin.html")
 
 
 @router.get("/client", response_class=HTMLResponse)
 def client_console() -> str:
-    """Per-client (brand) portal: their review queue, order DB and policy documents."""
-    return (_STATIC / "client.html").read_text(encoding="utf-8")
+    """Per-client (brand) portal: complaint queue, weekly chart, reps, orders, policies."""
+    return _page("client.html")
+
+
+@router.get("/rep", response_class=HTMLResponse)
+def rep_console() -> str:
+    """Representative portal: only the complaints assigned to this rep."""
+    return _page("rep.html")
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard_alias() -> str:
-    return (_STATIC / "admin.html").read_text(encoding="utf-8")
+    return _page("admin.html")
 
 
 @router.get("/api/customers")

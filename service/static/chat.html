@@ -248,7 +248,7 @@ h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:-.01em;margin
       </a>
     </div>
     <div class="top-r">
-      <a class="top-link" href="/admin"><span class="msym">dashboard</span> Ops console</a>
+      <a class="top-link" id="dashLink" href="/app"><span class="msym">grid_view</span> My dashboard</a>
       <div class="who">
         <button class="who-btn" onclick="App.toggleMenu(event)">
           <span class="av" id="whoAv">··</span>
@@ -360,6 +360,8 @@ const App = {
     $('#whoAv').textContent = this.cust.initials;
     $('#whoNm').textContent = this.cust.name;
     $('#whoId').textContent = this.cust.phone ? ('📱 '+this.cust.phone) : this.cust.id;
+    const dl=document.getElementById('dashLink');
+    if(dl) dl.href = this.isPlatform() ? ('/app?u='+this.cust.id) : '/';
     document.querySelectorAll('#menuList button').forEach(b=>b.classList.toggle('on', b.dataset.cid===this.cust.id));
     $('#refundsBtn').style.display = this.isPlatform() ? '' : 'none';
     // reset chat view when switching
