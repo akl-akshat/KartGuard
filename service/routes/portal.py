@@ -24,7 +24,8 @@ def _page(name: str) -> str:
 @router.get("/ui/app.css")
 def app_css() -> FileResponse:
     """The one shared light design system, linked by every portal."""
-    return FileResponse(_STATIC / "app.css", media_type="text/css")
+    return FileResponse(_STATIC / "app.css", media_type="text/css",
+                        headers={"Cache-Control": "no-cache"})  # revalidate: design updates land instantly
 
 
 _MEDIA_TYPES = {".mp4": "video/mp4", ".webm": "video/webm", ".jpg": "image/jpeg",

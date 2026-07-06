@@ -156,7 +156,7 @@ def test_role_logins_route_to_role_dashboards(client):
 
 
 def test_role_pages_are_served(client):
-    assert "ReturnGuard" in client.get("/").text                  # login
+    assert "KartGuard" in client.get("/").text                  # login
     assert "My Dashboard" in client.get("/app").text
     assert "Client Console" in client.get("/client").text
     assert "My Complaints" in client.get("/rep").text

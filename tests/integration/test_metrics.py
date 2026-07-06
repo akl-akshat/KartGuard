@@ -42,12 +42,12 @@ def test_metrics_summary_is_sane(client):
 def test_dashboard_served(client):
     r = client.get("/dashboard")
     assert r.status_code == 200
-    assert "ReturnGuard" in r.text and "Returns operations" in r.text
+    assert "KartGuard" in r.text and "Returns operations" in r.text
 
 
 def test_customer_portal_and_orders_endpoints(client):
     # landing page at / and the customer chat surface (UI-1) at /chat
-    assert "ReturnGuard" in client.get("/").text
+    assert "KartGuard" in client.get("/").text
     assert "Returns Assistant" in client.get("/chat").text
     custs = client.get("/api/customers").json()
     assert any(c["id"] == "CUST-LOW1" for c in custs)
