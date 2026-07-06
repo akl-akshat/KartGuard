@@ -3,7 +3,7 @@
 **A fraud-resistant returns & refunds platform — where an autonomous agent resolves disputes
 for many companies at once, and money only moves through deterministic gates.**
 
-*(Formerly ReturnGuard — the repo slug and package name keep the original spelling.)*
+*(Formerly ReturnGuard — the Python package name and a few document filenames keep the original spelling.)*
 
 Brands sign up, upload the returns policy their legal team actually wrote (**PDF, Word,
 Markdown — parsed, chunked, embedded**), and plug their orders in. From that moment,
@@ -19,9 +19,9 @@ It is a stateful agent graph (LangGraph) behind a FastAPI service with four role
 support console + REST API) and asynchronously (Kafka pipeline), with **deterministic financial
 guardrails**, **server-assessed evidence gating**, a **cross-brand credibility ledger**,
 **per-tenant policy RAG**, **human-in-the-loop escalation**, full observability, and an
-evaluation harness with hard safety gates — **292 automated tests**, red-teamed twice.
+evaluation harness with hard safety gates — **295 automated tests**, red-teamed twice.
 
-[![CI](https://github.com/akl-akshat/ReturnGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/akl-akshat/ReturnGuard/actions/workflows/ci.yml)
+[![CI](https://github.com/akl-akshat/KartGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/akl-akshat/KartGuard/actions/workflows/ci.yml)
 
 **Live demo:** [returnguard-99qu.onrender.com](https://returnguard-99qu.onrender.com) — free
 tier, so the first request after idle takes ~30–50s to wake. Sign in as any side of the
@@ -253,7 +253,7 @@ from the environment (NFR-SEC-1).
 | `events/` | Kafka schemas, producer, idempotent consumer + DLQ |
 | `observability/` | structured logging + tracing seam |
 | `eval/` | 44 labelled cases, runner, metrics, hard gates |
-| `tests/` | unit · integration · safety · e2e · property · concurrency — **292 automated tests** |
+| `tests/` | unit · integration · safety · e2e · property · concurrency — **295 automated tests** |
 
 ## Safety & evaluation
 
