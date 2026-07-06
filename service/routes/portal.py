@@ -59,13 +59,20 @@ _EMOJI = {"apparel": "👕", "footwear": "👟", "electronics": "🎧", "home": 
 
 
 @router.get("/", response_class=HTMLResponse)
+def landing() -> str:
+    """The front door: the cinematic marketing page. 'Open the live demo' leads to /login."""
+    return _page("landing.html")
+
+
+@router.get("/login", response_class=HTMLResponse)
 def login_page() -> str:
-    """Entry point: pick a role and identity (RBAC), then route to that dashboard."""
+    """Sign in: pick a role and identity (RBAC), then route to that dashboard."""
     return _page("login.html")
 
 
 @router.get("/marketing", response_class=HTMLResponse)
-def landing() -> str:
+def landing_alias() -> str:
+    """Legacy alias — the landing now lives at /."""
     return _page("landing.html")
 
 

@@ -53,3 +53,4 @@ _scratch/
 
 # local chat store (SQLite)
 .rg_chat.db*
+deliverables/

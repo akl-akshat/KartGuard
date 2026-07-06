@@ -59,7 +59,7 @@ async function boot(){
     const hit=rr.find(x=>x.id===rid) || (!rid && rr[0]);
     if(hit){ found=hit; coName=c.name; break; }
   }
-  if(!found){ location.href='/'; return; }
+  if(!found){ location.href='/login'; return; }
   REP=found; available=REP.available;
   $('#sbNm').textContent=REP.name; $('#sbCo').textContent=coName;
   $('#sbAv').textContent=REP.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
@@ -105,7 +105,7 @@ async function decide(sid,decision,fraud){
   await P(`/api/sessions/${sid}/review`,{decision,reviewer_id:REP.id,fraud:!!fraud});
   loadQueue();
 }
-async function logout(){ await P('/api/auth/logout'); location.href='/'; }
+async function logout(){ await P('/api/auth/logout'); location.href='/login'; }
 boot();
 setInterval(()=>{ const a=document.activeElement;
   if(a && document.getElementById('queue').contains(a)) return; loadQueue(); }, 8000);

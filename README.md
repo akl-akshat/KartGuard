@@ -186,7 +186,8 @@ Run the product:
 
 ```bash
 python scripts/_preview_serve.py     # pins the demo clock + seeds the demo marketplace
-# http://localhost:8000        login (role table above)
+# http://localhost:8000        landing page → "Open the live demo" → sign in (role table above)
+# http://localhost:8000/login  straight to sign-in
 # http://localhost:8000/docs   Swagger UI
 ```
 

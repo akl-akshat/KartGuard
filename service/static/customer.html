@@ -280,7 +280,7 @@ async function boot(){
   const uid=new URLSearchParams(location.search).get('u');
   const users=await api('/api/platform/users');
   U=users.find(x=>x.id===uid)||users[0];
-  if(!U){ location.href='/'; return; }
+  if(!U){ location.href='/login'; return; }
   $('#sbNm').textContent=U.name; $('#sbPh').textContent='📱 '+U.phone;
   $('#sbAv').textContent=U.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   $('#chatLink').href='/chat?c='+U.id;
@@ -504,7 +504,7 @@ function confetti(anchor){
     host.appendChild(c); setTimeout(()=>c.remove(),1400);
   }
 }
-async function logout(){ await P('/api/auth/logout'); location.href='/'; }
+async function logout(){ await P('/api/auth/logout'); location.href='/login'; }
 boot();
 </script>
 </body>

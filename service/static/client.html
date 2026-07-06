@@ -418,7 +418,7 @@ async function addRep(){
   }
 }
 async function toggleRep(id,av){ await P(`/api/reps/${id}/availability`,{available:av==='true'||av===true}); loadReps(); }
-async function logout(){ await P('/api/auth/logout'); location.href='/'; }
+async function logout(){ await P('/api/auth/logout'); location.href='/login'; }
 
 boot();
 // refresh the queue/stats — but NEVER while someone is typing inside the queue (no text-wipe)
