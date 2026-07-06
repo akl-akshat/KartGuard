@@ -29,3 +29,5 @@ services:
         value: "2026-06-22"   # dataset reference date — keeps seeded return windows open
       - key: RG_SEED_DEMO
         value: "1"
+      - key: RG_DRAW_DELAY_S
+        value: "120"          # demo: lottery tickets draw 2 min after purchase (default: 6 PM local)

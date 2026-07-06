@@ -15,6 +15,7 @@ os.environ.setdefault("LLM_PROVIDER", "stub")
 os.environ.setdefault("ENVIRONMENT", "dev")
 os.environ.setdefault("AS_OF_DATE", "2026-06-22")  # == db.dataset.REFERENCE_DATE
 os.environ.setdefault("RG_SEED_DEMO", "1")  # keep the demo tenant available locally too
+os.environ.setdefault("RG_DRAW_DELAY_S", "120")  # lottery tickets draw in 2 min (prod default: 6 PM)
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 import uvicorn  # noqa: E402

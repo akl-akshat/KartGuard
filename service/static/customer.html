@@ -49,6 +49,55 @@
     padding:11px 18px;border-radius:12px;font-size:13.5px;box-shadow:0 12px 40px -10px rgba(0,0,0,.4);
     opacity:0;pointer-events:none;transition:.25s;z-index:200}
   .toast.show{opacity:1}
+
+  /* ================= rewards — landing-grade ================= */
+  .rw-hero{position:relative;overflow:hidden;border-radius:18px;padding:30px 32px;margin-bottom:20px;color:#eef1f8;
+    background:radial-gradient(120% 160% at 12% 0%,#0d1120 0%,#06070c 62%)}
+  .rw-hero::after{content:"";position:absolute;right:-90px;top:-120px;width:340px;height:340px;border-radius:50%;
+    background:radial-gradient(closest-side,rgba(59,110,245,.35),transparent 70%);animation:rwglow 6s ease-in-out infinite}
+  @keyframes rwglow{0%,100%{opacity:.7}50%{opacity:1}}
+  .rw-kick{font-family:var(--label);font-size:10.5px;letter-spacing:.3em;color:#9db9ff;margin-bottom:10px}
+  .rw-hero h2{font-family:var(--disp-black);font-weight:400;font-size:clamp(26px,3.4vw,40px);color:#fff;margin:0;line-height:1.05}
+  .rw-hero h2 em{font-style:normal;color:transparent;-webkit-text-stroke:1.5px var(--brand)}
+  .rw-hero p{margin:12px 0 0;color:#a5adc4;font-size:13.5px;max-width:520px}
+  .rw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+  .rw-out{min-height:20px;font-size:13px;color:var(--muted);margin-top:12px}
+  .rw-out .won{color:var(--ink);font-weight:600;animation:pop .5s cubic-bezier(.2,.8,.3,1.4)}
+  /* wheel */
+  .wheelbox{position:relative;width:236px;height:236px;margin:8px auto 18px}
+  .pointer{position:absolute;top:-7px;left:50%;transform:translateX(-50%);z-index:3;width:0;height:0;
+    border-left:11px solid transparent;border-right:11px solid transparent;border-top:17px solid var(--ink);
+    filter:drop-shadow(0 3px 6px rgba(16,19,34,.4))}
+  #wheel{position:relative;width:100%;height:100%;border-radius:50%;box-shadow:0 0 0 7px #101322,0 0 0 9px #e8ecf4,0 18px 44px -14px rgba(16,19,34,.45)}
+  #wheel .hub{position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;background:#fff;z-index:2;
+    display:grid;place-items:center;box-shadow:0 0 0 5px rgba(255,255,255,.25),0 6px 18px rgba(16,19,34,.3)}
+  #wheel .hub svg{width:30px;height:30px}
+  .seglbl{position:absolute;inset:0;display:flex;justify-content:center;pointer-events:none}
+  .seglbl i{font-style:normal;font-family:var(--label);font-size:10px;font-weight:600;letter-spacing:.04em;color:#fff;
+    transform:translateY(14px);text-shadow:0 1px 3px rgba(0,0,0,.55);max-width:74px;text-align:center;line-height:1.2}
+  /* daily */
+  .streak{display:flex;gap:8px;justify-content:center;margin:6px 0 14px}
+  .sd{width:13px;height:13px;border-radius:50%;background:#e6ebf6;transition:.3s}
+  .sd.on{background:var(--brand);box-shadow:0 0 10px rgba(59,110,245,.65)}
+  .daily-amt{font-family:var(--disp-black);font-size:38px;color:var(--ink);margin-bottom:12px;line-height:1}
+  .daily-amt.pop,.pop{animation:pop .55s cubic-bezier(.2,.8,.3,1.6)}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+  /* lottery ladder + tickets */
+  .ladder{list-style:none;margin:0 0 14px;padding:0}
+  .ladder li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 2px;
+    border-bottom:1px dashed var(--line);font-size:12.5px}
+  .ladder li:first-child{font-weight:700}
+  .ladder .odds{font-family:var(--label);font-size:10.5px;color:var(--brand);background:var(--brand-soft);
+    border-radius:999px;padding:2px 9px;white-space:nowrap}
+  .bpass.tk .stub.ready{background:linear-gradient(135deg,#1fae7a,#4cd79f)}
+  .bpass.tk .eye{border:0;background:rgba(255,255,255,.2);color:#fff;font-weight:700;font-size:11.5px;
+    border-radius:8px;padding:6px 10px;cursor:pointer;animation:pop .5s}
+  .bpass.tk .eye:hover{background:rgba(255,255,255,.32)}
+  .bpass .stamp.win{border-color:var(--green);color:var(--green)}
+  .cd{font-family:var(--label)}
+  /* confetti */
+  .cf{position:absolute;width:8px;height:12px;border-radius:2px;pointer-events:none;z-index:60;animation:cfall 1.35s cubic-bezier(.2,.6,.6,1) forwards}
+  @keyframes cfall{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--dx),110px) rotate(var(--rr))}}
 </style>
 </head>
 <body>
@@ -158,21 +207,46 @@
 
     <!-- REWARDS -->
     <div class="content" id="v-rewards" style="display:none">
-      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
-        <div class="game"><span class="msym">rotate_right</span><h4>Spin the wheel</h4>
-          <p>One free spin daily — wallet credits &amp; brand coupons.</p>
-          <button class="btn btn-primary" onclick="spin()">Spin now</button>
-          <div class="tiny muted mt-s" id="spinOut"></div></div>
-        <div class="game"><span class="msym">calendar_today</span><h4>Daily reward</h4>
-          <p>Check in every day, collect a small credit.</p>
-          <button class="btn btn-primary" onclick="daily()">Claim today's</button>
-          <div class="tiny muted mt-s" id="dailyOut"></div></div>
-        <div class="game"><span class="msym">restaurant</span><h4>₹1 dinner lottery</h4>
-          <p>₹1 a ticket — daily winner takes a 5-star family dinner (3 people).</p>
-          <button class="btn btn-primary" onclick="lottery()">Play ₹1</button>
-          <div class="tiny muted mt-s" id="lotOut"></div></div>
+      <div class="rw-hero">
+        <div class="rw-kick">KARTGUARD REWARDS</div>
+        <h2>Play. Win. <em>Every day.</em></h2>
+        <p>Funded by our brand partners — the big prizes are rare and honest about it, the small wins are
+           common, and stakes only ever come from your wallet.</p>
       </div>
-      <div class="tiny faint mt">Rewards are funded by our brand partners. Play responsibly — stakes come from your wallet.</div>
+      <div class="rw-grid">
+        <div class="card">
+          <div class="card-h"><h3>Spin the wheel</h3><span class="pill blue"><span class="dot"></span>Free · daily</span></div>
+          <div class="card-b center">
+            <div class="wheelbox">
+              <div class="pointer"></div>
+              <div id="wheel"><div class="hub"><svg viewBox="0 0 24 24" fill="none"><path d="M4 5h2.1l2 9.3a1.7 1.7 0 0 0 1.66 1.35h6.7a1.7 1.7 0 0 0 1.65-1.28L20 8.2H7.1" stroke="#3b6ef5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.6 10.9l1.9 1.9 3.3-3.6" stroke="#3b6ef5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10.7" cy="19.3" r="1.45" fill="#3b6ef5"/><circle cx="16.9" cy="19.3" r="1.45" fill="#3b6ef5"/></svg></div></div>
+            </div>
+            <button class="btn btn-primary" id="spinBtn" onclick="spin()">Spin now</button>
+            <div class="rw-out" id="spinOut"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Daily check-in</h3><span class="pill green" id="streakPill"><span class="dot"></span>Streak 0</span></div>
+          <div class="card-b center">
+            <div class="streak" id="streak"></div>
+            <div class="daily-amt" id="dailyAmt">₹?</div>
+            <div class="tiny muted" style="margin:-6px 0 14px">a guaranteed credit, every single day</div>
+            <button class="btn btn-primary" id="dailyBtn" onclick="daily()">Claim today's</button>
+            <div class="rw-out" id="dailyOut"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>₹1 lottery</h3><span class="pill amber" id="drawPill"><span class="dot"></span>Sealed draw</span></div>
+          <div class="card-b">
+            <ul class="ladder" id="ladder"></ul>
+            <button class="btn btn-primary" style="width:100%" id="lotBtn" onclick="lottery()">Play ₹1 — get a ticket</button>
+            <div class="rw-out" id="lotOut">Every ticket wins something. The ladder is just steep.</div>
+          </div>
+        </div>
+      </div>
+      <div class="section-t mt" id="ticketsTitle" style="display:none">Your tickets</div>
+      <div id="ticketList" class="stack" style="gap:10px"></div>
+      <div class="tiny faint mt">Rewards are simulated and funded by brand partners in this demo. Stakes come from your wallet; voucher wins land back in it as scratchable coupons.</div>
     </div>
   </main>
 </div>
@@ -198,6 +272,7 @@ function show(v){
   document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on', a.dataset.v===v));
   $('#pageTitle').textContent=TITLES[v][0]; $('#pageSub').textContent=TITLES[v][1];
   if(v==='wallet') loadWallet();
+  if(v==='rewards') loadRewards();
 }
 document.getElementById('nav').addEventListener('click',e=>{ const a=e.target.closest('a'); if(a&&a.dataset.v) show(a.dataset.v); });
 
@@ -312,13 +387,123 @@ async function reveal(code){
     toast(`${res.brand} code revealed: ${res.code}`); }catch(e){}
   loadWallet();
 }
-async function spin(){ try{ const o=await P(`/api/wallet/${U.id}/spin`);
-    $('#spinOut').textContent=o.ok?('You won: '+o.prize):'Come back tomorrow!'; loadWallet(); }catch(e){} }
-async function daily(){ try{ const o=await P(`/api/wallet/${U.id}/daily`);
-    $('#dailyOut').textContent=o.ok?('₹'+o.amount+' added to your wallet'):'Already claimed today — see you tomorrow!'; loadWallet(); }catch(e){} }
-async function lottery(){ try{ const o=await P(`/api/wallet/${U.id}/lottery`,{lottery:'dinner'});
-    $('#lotOut').textContent=o.won?('🏆 YOU WON: '+o.prize+'!'):'Not this time — 1 in '+o.odds.toLocaleString()+' wins daily.'; loadWallet(); }
-  catch(e){ $('#lotOut').textContent='Add ₹1 to your wallet first.'; } }
+/* ================= rewards: honest wheel, streak check-in, sealed tickets ================= */
+let WHEEL=[], wheelRot=0, tkTimer=null;
+const SEG_COLORS=['#3b6ef5','#111a38','#5f8bff','#1c2750','#3b6ef5','#111a38','#5f8bff','#c9a227'];
+
+async function loadRewards(){
+  try{
+    if(!WHEEL.length){ WHEEL=(await api('/api/rewards/wheel')).segments; buildWheel(); }
+    const lad=(await api('/api/rewards/prizes')).prizes;
+    $('#ladder').innerHTML=lad.map(p=>`<li><span>${p.label}</span><b class="odds">${p.odds}</b></li>`).join('');
+    const st=await api(`/api/wallet/${U.id}/rewards/status`);
+    renderStreak(st.streak);
+    $('#spinBtn').disabled=st.spin_played;
+    if(st.spin_played) $('#spinOut').textContent='Played today — the wheel resets at midnight.';
+    $('#dailyBtn').disabled=st.daily_claimed;
+    if(st.daily_claimed) $('#dailyOut').textContent='Claimed — see you tomorrow!';
+    loadTickets();
+  }catch(e){}
+}
+function buildWheel(){
+  const w=$('#wheel'), seg=360/WHEEL.length;
+  w.style.background=`conic-gradient(${WHEEL.map((s,i)=>`${SEG_COLORS[i%SEG_COLORS.length]} ${i*seg}deg ${(i+1)*seg}deg`).join(',')})`;
+  w.querySelectorAll('.seglbl').forEach(e=>e.remove());
+  WHEEL.forEach((s,i)=>{ const e=document.createElement('span'); e.className='seglbl';
+    e.style.transform=`rotate(${i*seg+seg/2}deg)`; e.innerHTML=`<i>${s.label}</i>`; w.appendChild(e); });
+}
+async function spin(){
+  const btn=$('#spinBtn'); if(btn.disabled) return; btn.disabled=true;
+  try{
+    const o=await P(`/api/wallet/${U.id}/spin`);
+    if(!o.ok){ $('#spinOut').textContent='Come back tomorrow!'; return; }
+    // the SERVER already drew segment o.index — the wheel just travels there honestly:
+    // 5 full turns + stop anywhere inside that slice (jitter), never dead-centre robotic.
+    const seg=360/WHEEL.length, jitter=(Math.random()*0.66-0.33)*seg;
+    wheelRot += 360*5 + ((360-(o.index*seg+seg/2+jitter))-(wheelRot%360)+360)%360;
+    const w=$('#wheel');
+    w.style.transition='transform 4.4s cubic-bezier(.12,.8,.15,1)';
+    w.style.transform=`rotate(${wheelRot}deg)`;
+    setTimeout(()=>{
+      const p=o.prize;
+      $('#spinOut').innerHTML=`<span class="won">${p.kind==='voucher'?'🎟️':'🪙'} You won <b>${p.label}</b>${p.kind==='voucher'?' — it\'s in your wallet coupons':''}</span>`;
+      confetti($('#spinOut')); toast('You won '+p.label); loadWallet();
+    }, 4500);
+  }catch(e){ btn.disabled=false; }
+}
+async function daily(){
+  const btn=$('#dailyBtn'); if(btn.disabled) return; btn.disabled=true;
+  try{
+    const o=await P(`/api/wallet/${U.id}/daily`);
+    if(!o.ok){ $('#dailyOut').textContent='Already claimed — see you tomorrow!'; renderStreak(o.streak||0); return; }
+    const el=$('#dailyAmt'); el.textContent='₹'+o.amount.toFixed(0);
+    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+    renderStreak(o.streak); confetti(el); loadWallet();
+    $('#dailyOut').textContent=`Added to your wallet — streak ${o.streak} day${o.streak>1?'s':''}!`;
+  }catch(e){ btn.disabled=false; }
+}
+function renderStreak(n){
+  $('#streakPill').innerHTML=`<span class="dot"></span>Streak ${n}`;
+  $('#streak').innerHTML=Array.from({length:7},(_,i)=>`<span class="sd${i<Math.min(n,7)?' on':''}"></span>`).join('');
+}
+async function lottery(){
+  try{
+    const o=await P(`/api/wallet/${U.id}/lottery`);
+    $('#lotOut').textContent=`Ticket ${o.ticket.code} issued — sealed until the draw.`;
+    toast('Ticket issued — good luck!'); loadWallet(); loadTickets();
+  }catch(e){ $('#lotOut').textContent='Add ₹1 to your wallet first.'; }
+}
+async function loadTickets(){
+  const list=await api(`/api/wallet/${U.id}/tickets`);
+  $('#ticketsTitle').style.display=list.length?'':'none';
+  $('#ticketList').innerHTML=list.map(t=>{
+    const ready=t.status==='ready', rev=t.status==='revealed';
+    const legLine = rev ? `🎁 ${t.prize.label}${t.prize.voucher_code?` · voucher <b>${t.prize.voucher_code}</b> in your wallet`:''}`
+                  : ready ? 'Draw complete — reveal your prize!'
+                  : `Sealed · draws in <b class="cd" data-at="${t.draw_at}">…</b>`;
+    const stub = rev ? `₹${t.prize.value.toFixed(0)}<span class="lbl" style="color:rgba(255,255,255,.85)">WON</span>`
+               : ready ? `<button class="eye" onclick="revealTk('${t.id}')">👁 Reveal</button>`
+               : `🔒<span class="lbl" style="color:rgba(255,255,255,.85)">SEALED</span>`;
+    return `<div class="bpass tk">${rev?'<div class="stamp win">WON</div>':''}
+      <div class="leg">
+        <div class="route"><span class="brandnm">₹1 Lottery</span><span class="lbl">TICKET</span></div>
+        <div class="code">${t.code}</div>
+        <div class="tiny ${rev?'':'muted'}" style="margin-top:5px">${legLine}</div>
+      </div>
+      <div class="perf"></div>
+      <div class="stub ${ready&&!rev?'ready':''}">${stub}</div>
+    </div>`; }).join('');
+  clearInterval(tkTimer);
+  if(document.querySelector('.cd')) tkTimer=setInterval(()=>{
+    let pending=false;
+    document.querySelectorAll('.cd').forEach(e=>{
+      const s=Math.max(0, Math.floor(+e.dataset.at - Date.now()/1000));
+      if(s<=0){ pending=true; return; }
+      const h=Math.floor(s/3600), m=String(Math.floor(s%3600/60)).padStart(2,'0'), ss=String(s%60).padStart(2,'0');
+      e.textContent=(h?String(h).padStart(2,'0')+':':'')+m+':'+ss;
+    });
+    if(pending){ clearInterval(tkTimer); loadTickets(); }
+  }, 1000);
+}
+async function revealTk(id){
+  try{
+    const o=await P(`/api/wallet/${U.id}/tickets/${id}/reveal`);
+    toast('🎉 You won '+o.prize.label+'!'); confetti($('#ticketList')); loadWallet(); loadTickets();
+  }catch(e){ loadTickets(); }
+}
+function confetti(anchor){
+  const host=anchor.closest('.card')||anchor.parentElement; if(!host) return;
+  host.style.position='relative';
+  const r=host.getBoundingClientRect();
+  for(let i=0;i<26;i++){
+    const c=document.createElement('i'); c.className='cf';
+    c.style.left=(r.width/2+(Math.random()*80-40))+'px'; c.style.top=(r.height/2-30)+'px';
+    c.style.background=['#3b6ef5','#5f8bff','#c9a227','#1fae7a','#ff8da0'][i%5];
+    c.style.setProperty('--dx',(Math.random()*160-80)+'px');
+    c.style.setProperty('--rr',(Math.random()*720-360)+'deg');
+    host.appendChild(c); setTimeout(()=>c.remove(),1400);
+  }
+}
 async function logout(){ await P('/api/auth/logout'); location.href='/'; }
 boot();
 </script>
