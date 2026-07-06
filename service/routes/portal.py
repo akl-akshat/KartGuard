@@ -26,6 +26,25 @@ def app_css() -> FileResponse:
     """The one shared light design system, linked by every portal."""
     return FileResponse(_STATIC / "app.css", media_type="text/css")
 
+
+_MEDIA_TYPES = {".mp4": "video/mp4", ".webm": "video/webm", ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+
+@router.get("/media/{name}")
+def media(name: str) -> FileResponse:
+    """Optional cinematic assets (e.g. a generated hero video the landing scroll-scrubs).
+
+    The landing page probes /media/rg-hero.mp4 and upgrades from its canvas hero to the
+    video when present — drop a render into service/static/media/ and it goes live.
+    """
+    path = (_STATIC / "media" / name).resolve()
+    if path.parent != (_STATIC / "media").resolve() or path.suffix.lower() not in _MEDIA_TYPES:
+        raise HTTPException(status_code=404, detail="not found")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(path, media_type=_MEDIA_TYPES[path.suffix.lower()])
+
 # Demo "signed-in" customers, mapped to seeded profiles. The customer UI never shows risk.
 DEMO_CUSTOMERS = [
     {"id": "CUST-LOW1", "name": "Aarav Sharma", "initials": "AS"},
