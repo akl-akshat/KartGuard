@@ -90,8 +90,8 @@ _ACTION_LABEL = {
     "exchange_with_size_guide": "a free size exchange for the correct size",
     "free_exchange": "a free exchange",
     "expedited_replacement": "a priority replacement at no cost",
-    "instant_refund": "a full refund to your original payment method",
-    "partial_refund": "a partial refund to your original payment method",
+    "instant_refund": "a full refund, credited straight to your KartGuard wallet",
+    "partial_refund": "a partial refund, credited to your KartGuard wallet",
     "store_credit_refund": "store credit",
     "retention_coupon": "a discount coupon to keep your order",
     "goodwill_credit": "a goodwill credit",
@@ -230,7 +230,7 @@ def is_status_query(text: str) -> bool:
 
 
 def answer_question(text: str, order: dict | None, policy_ctx: dict | None = None,
-                    refund_ctx: dict | None = None) -> str:
+                    refund_ctx: dict | None = None, has_issue: bool = False) -> str:
     t0 = _norm(text)
     # Status/tracking questions answer from the customer's ACTUAL history, never boilerplate:
     # a processed resolution reports what was done (refund amount / exchange / replacement) and
@@ -277,14 +277,15 @@ def answer_question(text: str, order: dict | None, policy_ctx: dict | None = Non
             lead += f"\n\nFor your **{order['title']}**, the return window is currently {win}. "
         else:
             lead += "\n\n"
-        return lead + "Tell me exactly what went wrong and I'll take it from there."
+        # never re-ask for the issue when one is already on file — the phase handler owns the next step
+        return lead + ("" if has_issue else "Tell me exactly what went wrong and I'll take it from there.")
     t = _norm(text)
     if not order:
         return "Sure — pick the order on the left and I'll pull up your options and its return window."
     win = "still open" if _within_window(order) else "closed"
     if any(w in t for w in ("where", "status", "how long")):
-        return (f"For **{order['title']}**, if a refund is due it goes back to your original payment method and "
-                "usually reflects in 3–5 business days. Your return window is currently " + win + ".")
+        return (f"For **{order['title']}**, if a refund is due it lands in your **KartGuard wallet** instantly "
+                "(withdraw to your bank anytime). Your return window is currently " + win + ".")
     return (f"For **{order['title']}** (₹{order['price']:.0f}, {order['category']}), the right resolution depends on "
             "what's wrong: an exchange for a size/fit issue, a like-for-like replacement for a genuine defect or "
             "wrong item, and a refund only where that's the eligible outcome. Tell me what happened and I'll help.")
@@ -294,6 +295,33 @@ def evidence_ask(kind: str, order: dict) -> str:
     return (f"To process this correctly I just need to see the problem first. Could you attach **{kind}** for your "
             f"**{order['title']}**? It's used only to verify this claim, kept private, and it means I can resolve a "
             "genuine issue right away. You can attach it below.")
+
+
+# "how do I photograph a smell?" — a fair question about the evidence itself. Answer it with
+# practical guidance for THIS claim; never route it through policy RAG (which once dredged up
+# an irrelevant 'change of mind' paragraph for exactly this question).
+_EVIDENCE_META_WORDS = ("attach", "photo", "image", "picture", "upload", "camera", "screenshot",
+                        "smelling", "smell")
+
+
+def evidence_help(issue_type: str | None, order: dict | None) -> str:
+    item = order["title"] if order else "the item"
+    perishable = bool(order) and order.get("category") in PERISHABLE
+    if perishable and issue_type in ("damaged_item", "quality_issue", None):
+        what = ("Fair question — a smell can't be photographed, but spoilage almost always shows. "
+                f"Photograph the **{item} itself**: any curdling, discoloration or unusual texture, "
+                "plus the container, seal or label if there is one.")
+    elif issue_type in ("damaged_item", "defective_item", "quality_issue"):
+        what = (f"Photograph the **{item}** so the damage or fault is clearly visible — one wide shot "
+                "and one close-up of the problem area works best.")
+    elif issue_type == "wrong_item":
+        what = ("Photograph **what you actually received**, ideally next to the order label or invoice — "
+                "that's enough to show the mismatch.")
+    else:
+        what = f"A clear photo of the **{item}** showing the problem is all I need."
+    return (what + " Use the **attach** button below to send it. And if the problem genuinely can't be "
+            "captured in a photo, just say **\"talk to a human\"** — a specialist will review your "
+            "description instead.")
 
 
 def propose_text(action: dict, order: dict) -> str:
@@ -351,8 +379,8 @@ def result_text(action: dict, order: dict) -> str:
         "exchange_with_size_guide": "✅ Done! I've arranged a **free exchange for the correct size** with a size guide — you'll get shipping details by email.",
         "free_exchange": "✅ Your **free exchange** is booked — details are on the way by email.",
         "expedited_replacement": "✅ Sorted — a **priority replacement** is on its way at no cost. I've added a small goodwill credit for the trouble.",
-        "instant_refund": f"✅ Your **refund of ₹{amt:.0f}** is processed to your original payment method — it should reflect in 3–5 business days.",
-        "partial_refund": f"✅ A **partial refund of ₹{amt:.0f}** is on its way to your original payment method.",
+        "instant_refund": f"✅ Your **refund of ₹{amt:.0f}** is in your **KartGuard wallet** right now — spend it at any brand here, or withdraw to your bank anytime.",
+        "partial_refund": f"✅ A **partial refund of ₹{amt:.0f}** just landed in your **KartGuard wallet**.",
         "store_credit_refund": f"✅ **₹{amt:.0f} store credit** has been added to your account.",
         "retention_coupon": f"✅ I've applied a **₹{amt:.0f} coupon** to your account — thanks for keeping your order!",
         "goodwill_credit": f"✅ A **₹{amt:.0f} goodwill credit** has been added, with our apologies.",
@@ -404,7 +432,8 @@ def handle_turn(deps: Deps, session: dict[str, Any], text: str,
             r.say("Of course — I've asked a **human specialist** to pick this thread up. "
                   "They'll reply right here with your full context. 🙏")
         elif intent == "question" or is_status_query(text):
-            r.say(answer_question(text, order, policy_ctx, refund_ctx))
+            # locked chat: never invite a fresh claim ("tell me what went wrong") — the lock would refuse it
+            r.say(answer_question(text, order, policy_ctx, refund_ctx, has_issue=True))
         elif intent == "dismiss":
             r.say("Glad everything's sorted! 😊 This conversation stays closed — message here "
                   "anytime if you need it again.")
@@ -432,9 +461,12 @@ def handle_turn(deps: Deps, session: dict[str, Any], text: str,
         if intent in ("reject",) or _is(_norm(text), _DENY):
             # declines to substantiate → we can't verify → a human reviews it (no auto remedy)
             return _to_human(deps, session, st, order, r, reason="no_evidence")
-        if intent == "question":
-            r.say(answer_question(text, order, policy_ctx, refund_ctx) + " "
-                  + evidence_ask(st.get("evidence_kind", "a photo"), order))
+        if intent == "question" and _has_word(_norm(text), _EVIDENCE_META_WORDS):
+            # a question about the evidence itself ("how can I attach a photo of a smell?")
+            r.say(evidence_help(st.get("issue_type"), order))
+        elif intent == "question":
+            r.say(answer_question(text, order, policy_ctx, refund_ctx, has_issue=True)
+                  + " Once you attach that photo, I'll take it from there.")
         else:
             r.say(evidence_ask(st.get("evidence_kind", "a photo of the problem"), order))
         r.phase, r.status, r.state = "awaiting_evidence", "awaiting_evidence", st
@@ -451,7 +483,7 @@ def handle_turn(deps: Deps, session: dict[str, Any], text: str,
         if intent != "issue":
             # question / greeting / unclear while a proposal is pending — keep it on the table
             pending = st.get("proposed_action") or {}
-            lead = (answer_question(text, order, policy_ctx, refund_ctx) + " ") if intent == "question" else ""
+            lead = (answer_question(text, order, policy_ctx, refund_ctx, has_issue=True) + " ") if intent == "question" else ""
             r.say(lead + _reconfirm(pending, order),
                   meta=_card(pending, pending=True) if pending else None)
             r.phase, r.status, r.state = "confirming", "awaiting_confirmation", st
@@ -474,7 +506,8 @@ def handle_turn(deps: Deps, session: dict[str, Any], text: str,
 
     # 5) a direct question / options
     if intent == "question":
-        r.say(answer_question(text, order, policy_ctx, refund_ctx),
+        r.say(answer_question(text, order, policy_ctx, refund_ctx,
+                              has_issue=bool(st.get("issue_text"))),
               meta={"kind": "policy", "company": policy_ctx.get("company"),
                     "citations": [{"doc": c["doc_name"], "seq": c["seq"]}
                                   for c in policy_ctx["chunks"][:3]]}

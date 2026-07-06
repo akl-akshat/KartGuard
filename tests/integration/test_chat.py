@@ -288,6 +288,35 @@ def test_review_rejects_non_escalated_session(client):
                        json={"decision": "approve", "reviewer_id": "op-1"}).status_code == 409
 
 
+# ----------------------------------------------------------- evidence meta-questions
+def test_how_do_i_photograph_a_smell_gets_guidance_not_policy_dump(client):
+    """Live-reported transcript: 'how can i attach image of smelling food??' used to dredge up an
+    irrelevant 'Change of mind' policy quote plus a stale 'tell me what went wrong' re-ask."""
+    s = _new(client, "CUST-NEW1", GROCERY)
+    _turn(client, s["id"], "its spoilt is smelling")                    # -> awaiting_evidence
+    r = _turn(client, s["id"], "how can i attach image of smelling food??")
+    msg = r["messages"][0]["text"]
+    assert "can't be photographed" in msg or "curdling" in msg          # practical guidance
+    assert "Change of mind" not in msg and "change of mind" not in msg  # no irrelevant policy
+    assert "Tell me exactly what went wrong" not in msg                 # no context amnesia
+    assert "talk to a human" in msg                                     # honest escape hatch
+    assert r["phase"] == "awaiting_evidence"                            # gate still holds
+    # ...and the verified claim still resolves with wallet-truthful copy
+    r = _turn(client, s["id"], evidence=STRONG)
+    assert any("KartGuard wallet" in m["text"] for m in r["messages"])
+    assert not any("original payment method" in m["text"] for m in r["messages"])
+
+
+def test_generic_question_mid_evidence_keeps_short_reminder(client):
+    s = _new(client, "CUST-NEW1", GROCERY)
+    _turn(client, s["id"], "the food arrived spoiled")
+    r = _turn(client, s["id"], "what is your refund policy for this?")
+    msg = r["messages"][0]["text"]
+    assert "Tell me exactly what went wrong" not in msg                 # issue already on file
+    assert "attach" in msg.lower()                                      # short evidence reminder
+    assert r["phase"] == "awaiting_evidence"
+
+
 # ----------------------------------------------------------- dismissal ("opened by mistake")
 def test_opened_by_mistake_closes_gracefully_and_reopens(client):
     s = _new(client, "CUST-LOW1", EARBUDS)
