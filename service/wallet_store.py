@@ -16,6 +16,7 @@ Durable in the same SQLite file as the rest of the platform.
 
 from __future__ import annotations
 
+import os
 import random
 import time
 import uuid
@@ -79,6 +80,21 @@ def init() -> None:
                 created_at REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_rewards_user ON rewards_log(user_id, day);
+            CREATE TABLE IF NOT EXISTS lottery_tickets (
+                id            TEXT PRIMARY KEY,
+                user_id       TEXT NOT NULL,
+                code          TEXT NOT NULL,     -- boarding-pass code shown to the customer
+                day           TEXT NOT NULL,
+                draw_at       REAL NOT NULL,     -- outcome stays sealed until this moment
+                outcome_label TEXT NOT NULL,     -- drawn at purchase, server-side, never leaked early
+                outcome_kind  TEXT NOT NULL,     -- grand | voucher
+                outcome_value REAL NOT NULL,
+                cost          REAL NOT NULL,
+                revealed      INTEGER NOT NULL DEFAULT 0,
+                voucher_code  TEXT,
+                created_at    REAL NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_tickets_user ON lottery_tickets(user_id, created_at DESC);
             """
         )
         # migration: coupons gained brand-settlement tracking
@@ -262,15 +278,34 @@ def settle_coupon(code: str) -> dict[str, Any]:
             "payout_note": "platform pays the brand this amount in the settlement cycle"}
 
 
-# ------------------------------------------------------------------ games (daily-gated, fair)
-_SPIN_PRIZES = [
-    ("₹5 wallet credit", "credit", 5.0),
-    ("₹10 wallet credit", "credit", 10.0),
-    ("₹20 wallet credit", "credit", 20.0),
-    ("10% Zomato coupon", "coupon:Zomato", 0.0),
-    ("Better luck tomorrow", "none", 0.0),
-    ("₹2 wallet credit", "credit", 2.0),
+# ------------------------------------------------------------------ games (daily-gated, house-safe)
+# The wheel is SERVER-authoritative: the weighted draw happens here and the UI merely animates
+# the wheel to the drawn segment. Big prizes are rare (jackpot 1 in 100), small wins common —
+# random every time, but the expected daily giveaway stays pocket change.
+_SPIN_SEGMENTS = [  # (label, kind, value, weight) — weights sum 100; order == wheel face order
+    ("₹2 credit", "credit", 2.0, 28),
+    ("₹5 voucher", "voucher", 5.0, 22),
+    ("₹5 credit", "credit", 5.0, 18),
+    ("₹10 voucher", "voucher", 10.0, 12),
+    ("₹10 credit", "credit", 10.0, 9),
+    ("₹20 voucher", "voucher", 20.0, 6),
+    ("₹25 credit", "credit", 25.0, 4),
+    ("₹100 JACKPOT", "credit", 100.0, 1),
 ]
+
+
+def wheel_config() -> dict[str, Any]:
+    """The wheel face (labels only — never the weights) so the UI draws exactly what we land on."""
+    return {"segments": [{"label": s[0], "kind": s[1], "value": s[2]} for s in _SPIN_SEGMENTS]}
+
+
+def _grant_voucher(c, user_id: str, amount: float, brand: str = "KartGuard Rewards") -> str:
+    """A prize voucher = a coupon the platform funds. No wallet debit — it lands as a
+    scratchable boarding pass in the customer's wallet, brand-redeemable like any coupon."""
+    code = "KG-" + uuid.uuid4().hex[:4].upper() + "-" + uuid.uuid4().hex[:4].upper()
+    c.execute("INSERT INTO coupons (code, user_id, brand, amount, revealed, created_at) VALUES (?,?,?,?,0,?)",
+              (code, user_id, brand, amount, _now()))
+    return code
 
 
 def _already_played(c, user_id: str, game: str) -> bool:
@@ -278,56 +313,152 @@ def _already_played(c, user_id: str, game: str) -> bool:
                           (user_id, game, _today())).fetchone())
 
 
+def _daily_streak(c, user_id: str) -> int:
+    """Consecutive daily check-ins ending today (or yesterday, if today is still unclaimed)."""
+    from datetime import date, timedelta
+    days = {r["day"] for r in c.execute(
+        "SELECT day FROM rewards_log WHERE user_id=? AND game='daily' ORDER BY day DESC LIMIT 60",
+        (user_id,))}
+    d, streak = date.today(), 0
+    if d.isoformat() not in days:
+        d -= timedelta(days=1)  # today not claimed yet — count the run up to yesterday
+    while d.isoformat() in days:
+        streak += 1
+        d -= timedelta(days=1)
+    return streak
+
+
+def games_status(user_id: str) -> dict[str, Any]:
+    """Read-only state for the rewards page: what's played, streak, when things reset."""
+    ensure_wallet(user_id)
+    with _LOCK, _conn() as c:
+        return {
+            "spin_played": _already_played(c, user_id, "spin"),
+            "daily_claimed": _already_played(c, user_id, "daily"),
+            "streak": _daily_streak(c, user_id),
+        }
+
+
 def spin_wheel(user_id: str) -> dict[str, Any]:
-    """One free daily spin. Prizes are funded by brand-supplied coupons + small credits."""
+    """One free daily spin. Weighted, server-side; returns the landed segment index."""
     ensure_wallet(user_id)
     with _LOCK, _conn() as c:
         if _already_played(c, user_id, "spin"):
             return {"ok": False, "reason": "already_played_today"}
-        label, kind, val = random.choice(_SPIN_PRIZES)
+        idx = random.choices(range(len(_SPIN_SEGMENTS)), weights=[s[3] for s in _SPIN_SEGMENTS])[0]
+        label, kind, val, _w = _SPIN_SEGMENTS[idx]
         c.execute("INSERT INTO rewards_log (id, user_id, game, day, outcome, created_at) VALUES (?,?,?,?,?,?)",
                   ("rw_" + uuid.uuid4().hex[:10], user_id, "spin", _today(), label, _now()))
+        voucher = None
         if kind == "credit":
             _accrue(c, user_id)
             c.execute("UPDATE wallets SET balance=balance+? WHERE user_id=?", (val, user_id))
             _txn(c, user_id, "reward", val, note=f"Spin reward: {label}")
-    return {"ok": True, "prize": label}
+        elif kind == "voucher":
+            voucher = _grant_voucher(c, user_id, val)
+    return {"ok": True, "index": idx,
+            "prize": {"label": label, "kind": kind, "value": val, "voucher_code": voucher}}
 
 
 def daily_reward(user_id: str) -> dict[str, Any]:
-    """A small guaranteed daily check-in credit to bring the customer back each day."""
+    """A small guaranteed daily check-in credit; the streak makes coming back feel like progress."""
     ensure_wallet(user_id)
     with _LOCK, _conn() as c:
         if _already_played(c, user_id, "daily"):
-            return {"ok": False, "reason": "already_claimed_today"}
+            return {"ok": False, "reason": "already_claimed_today", "streak": _daily_streak(c, user_id)}
         val = random.choice([1.0, 1.0, 2.0, 3.0, 5.0])
         c.execute("INSERT INTO rewards_log (id, user_id, game, day, outcome, created_at) VALUES (?,?,?,?,?,?)",
                   ("rw_" + uuid.uuid4().hex[:10], user_id, "daily", _today(), f"₹{val:.0f}", _now()))
         _accrue(c, user_id)
         c.execute("UPDATE wallets SET balance=balance+? WHERE user_id=?", (val, user_id))
         _txn(c, user_id, "reward", val, note="Daily check-in reward")
-    return {"ok": True, "amount": val}
+        streak = _daily_streak(c, user_id)
+    return {"ok": True, "amount": val, "streak": streak}
 
 
-_LOTTERIES = {
-    "dinner": {"name": "5-star family dinner for 3", "cost": 1.0, "odds": 30_000},
-    "gadget": {"name": "Flagship smartphone", "cost": 2.0, "odds": 80_000},
-}
+# --------------------------------------------------------------- ₹1 lottery: sealed tickets
+# Every ticket WINS something — but the ladder is steep: the grand prize stays 1-in-30,000 while
+# tiny platform-funded vouchers carry the floor, so each draw delights without bleeding money.
+_TICKET_PRIZES = [  # (label, kind, value, weight) — weights sum 30,000
+    ("5-star family dinner (3 people)", "grand", 1500.0, 1),        # 1 in 30,000
+    ("₹100 food voucher", "voucher", 100.0, 150),                   # 0.5%
+    ("₹50 food voucher", "voucher", 50.0, 1500),                    # 5%
+    ("₹20 food voucher", "voucher", 20.0, 4500),                    # 15%
+    ("₹10 discount voucher", "voucher", 10.0, 8849),                # ~29.5%
+    ("₹5 discount voucher", "voucher", 5.0, 15000),                 # 50% — the guaranteed floor
+]
 
 
-def play_lottery(user_id: str, lottery: str = "dinner") -> dict[str, Any]:
-    """Stake a tiny amount for a large, rarely-won prize. Expected value favours the house, so we
-    win on aggregate while each customer happily plays ('what's ₹1 for a shot at a 5-star dinner?')."""
-    cfg = _LOTTERIES.get(lottery)
-    if not cfg:
-        return {"ok": False, "reason": "unknown lottery"}
+def ticket_prizes() -> list[dict[str, Any]]:
+    """The public prize ladder (with honest odds) shown on the lottery card."""
+    total = sum(p[3] for p in _TICKET_PRIZES)
+    return [{"label": p[0], "kind": p[1], "value": p[2],
+             "odds": f"1 in {total // p[3]:,}" if p[3] < total // 10 else f"{p[3] * 100 // total}%"}
+            for p in _TICKET_PRIZES]
+
+
+def _next_draw() -> float:
+    """Tickets draw at 6 PM local. RG_DRAW_DELAY_S shortens the wait for demos/tests."""
+    delay = os.environ.get("RG_DRAW_DELAY_S")
+    if delay is not None:
+        return _now() + max(0, int(delay))
+    lt = time.localtime()
+    draw = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 18, 0, 0, 0, 0, -1))
+    return draw if draw > _now() else draw + 86_400
+
+
+def buy_ticket(user_id: str) -> dict[str, Any]:
+    """₹1 buys a SEALED ticket: the outcome is drawn server-side at purchase and stored, but
+    nobody (including the API) can see it before draw time — reveal is where the fun happens."""
     ensure_wallet(user_id)
     with _LOCK, _conn() as c:
-        if not _debit(c, user_id, cfg["cost"], "lottery_stake", note=f"Lottery: {cfg['name']}"):
+        if not _debit(c, user_id, 1.0, "lottery_stake", note="Lottery ticket"):
             return {"ok": False, "reason": "insufficient balance"}
-        won = random.randint(1, cfg["odds"]) == 1
+        pick = random.choices(_TICKET_PRIZES, weights=[p[3] for p in _TICKET_PRIZES])[0]
+        tid = "tk_" + uuid.uuid4().hex[:10]
+        code = "TKT-" + uuid.uuid4().hex[:4].upper() + "-" + uuid.uuid4().hex[:4].upper()
+        draw_at = _next_draw()
+        c.execute("INSERT INTO lottery_tickets (id, user_id, code, day, draw_at, outcome_label, "
+                  "outcome_kind, outcome_value, cost, revealed, created_at) VALUES (?,?,?,?,?,?,?,?,?,0,?)",
+                  (tid, user_id, code, _today(), draw_at, pick[0], pick[1], pick[2], 1.0, _now()))
         c.execute("INSERT INTO rewards_log (id, user_id, game, day, outcome, created_at) VALUES (?,?,?,?,?,?)",
-                  ("rw_" + uuid.uuid4().hex[:10], user_id, "lottery", _today(),
-                   ("WON:" + cfg["name"]) if won else "no_win", _now()))
-    return {"ok": True, "won": won, "prize": cfg["name"] if won else None,
-            "cost": cfg["cost"], "odds": cfg["odds"]}
+                  ("rw_" + uuid.uuid4().hex[:10], user_id, "lottery", _today(), "ticket:" + code, _now()))
+    return {"ok": True, "ticket": {"id": tid, "code": code, "draw_at": draw_at,
+                                   "cost": 1.0, "status": "sealed"}}
+
+
+def tickets(user_id: str) -> list[dict[str, Any]]:
+    """The customer's tickets, newest first. Outcomes appear ONLY once revealed."""
+    now = _now()
+    with _LOCK, _conn() as c:
+        rows = c.execute("SELECT * FROM lottery_tickets WHERE user_id=? ORDER BY created_at DESC LIMIT 20",
+                         (user_id,)).fetchall()
+    out = []
+    for r in rows:
+        t = {"id": r["id"], "code": r["code"], "draw_at": r["draw_at"], "cost": r["cost"],
+             "status": "revealed" if r["revealed"] else ("ready" if now >= r["draw_at"] else "sealed")}
+        if r["revealed"]:
+            t["prize"] = {"label": r["outcome_label"], "kind": r["outcome_kind"],
+                          "value": r["outcome_value"], "voucher_code": r["voucher_code"]}
+        out.append(t)
+    return out
+
+
+def reveal_ticket(user_id: str, ticket_id: str) -> dict[str, Any]:
+    """Reveal after the draw: first call applies the prize (idempotent thereafter)."""
+    with _LOCK, _conn() as c:
+        r = c.execute("SELECT * FROM lottery_tickets WHERE id=? AND user_id=?",
+                      (ticket_id, user_id)).fetchone()
+        if not r:
+            return {"ok": False, "reason": "not_found"}
+        if _now() < r["draw_at"]:
+            return {"ok": False, "reason": "draw_pending", "draw_at": r["draw_at"]}
+        if r["revealed"]:
+            return {"ok": True, "already": True,
+                    "prize": {"label": r["outcome_label"], "kind": r["outcome_kind"],
+                              "value": r["outcome_value"], "voucher_code": r["voucher_code"]}}
+        brand = "KartGuard Dining" if r["outcome_kind"] == "grand" else "KartGuard Rewards"
+        voucher = _grant_voucher(c, user_id, r["outcome_value"], brand=brand)
+        c.execute("UPDATE lottery_tickets SET revealed=1, voucher_code=? WHERE id=?", (voucher, r["id"]))
+    return {"ok": True, "prize": {"label": r["outcome_label"], "kind": r["outcome_kind"],
+                                  "value": r["outcome_value"], "voucher_code": voucher}}

@@ -131,10 +131,45 @@ def daily(user_id: str) -> dict:
     return {**out, "wallet": wallet_store.get_wallet(user_id)}
 
 
-@router.post("/api/wallet/{user_id}/lottery")
-def lottery(user_id: str, body: LotteryReq) -> dict:
+@router.get("/api/rewards/wheel")
+def rewards_wheel() -> dict:
+    """The wheel face (labels only — weights stay server-side)."""
+    return wallet_store.wheel_config()
+
+
+@router.get("/api/rewards/prizes")
+def rewards_prizes() -> dict:
+    """The lottery prize ladder with honest odds."""
+    return {"prizes": wallet_store.ticket_prizes()}
+
+
+@router.get("/api/wallet/{user_id}/rewards/status")
+def rewards_status(user_id: str) -> dict:
     _require_user(user_id)
-    out = wallet_store.play_lottery(user_id, body.lottery)
+    return wallet_store.games_status(user_id)
+
+
+@router.post("/api/wallet/{user_id}/lottery")
+def lottery(user_id: str, body: LotteryReq | None = None) -> dict:
+    """₹1 buys a sealed boarding-pass ticket; the outcome stays hidden until draw time."""
+    _require_user(user_id)
+    out = wallet_store.buy_ticket(user_id)
     if not out["ok"]:
         raise HTTPException(status_code=400, detail=out.get("reason", "play failed"))
+    return {**out, "wallet": wallet_store.get_wallet(user_id)}
+
+
+@router.get("/api/wallet/{user_id}/tickets")
+def list_tickets(user_id: str) -> list[dict]:
+    _require_user(user_id)
+    return wallet_store.tickets(user_id)
+
+
+@router.post("/api/wallet/{user_id}/tickets/{ticket_id}/reveal")
+def reveal_ticket(user_id: str, ticket_id: str) -> dict:
+    _require_user(user_id)
+    out = wallet_store.reveal_ticket(user_id, ticket_id)
+    if not out["ok"]:
+        code = 404 if out["reason"] == "not_found" else 409
+        raise HTTPException(status_code=code, detail=out)
     return {**out, "wallet": wallet_store.get_wallet(user_id)}

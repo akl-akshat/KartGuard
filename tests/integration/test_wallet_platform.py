@@ -112,14 +112,41 @@ def test_coupon_cannot_exceed_balance(client):
 def test_daily_and_spin_are_once_per_day_and_lottery_debits(client):
     u = _me(client)
     _resolve_refund(client, u["id"])
-    assert client.post(f"/api/wallet/{u['id']}/daily").json()["ok"] is True
+    d = client.post(f"/api/wallet/{u['id']}/daily").json()
+    assert d["ok"] is True and d["streak"] >= 1
     assert client.post(f"/api/wallet/{u['id']}/daily").json()["ok"] is False
-    assert client.post(f"/api/wallet/{u['id']}/spin").json()["ok"] is True
+    sp = client.post(f"/api/wallet/{u['id']}/spin").json()
+    assert sp["ok"] is True and 0 <= sp["index"] < 8 and sp["prize"]["label"]
     assert client.post(f"/api/wallet/{u['id']}/spin").json()["ok"] is False
     b4 = client.get(f"/api/wallet/{u['id']}").json()["balance"]
-    out = client.post(f"/api/wallet/{u['id']}/lottery", json={"lottery": "dinner"}).json()
+    out = client.post(f"/api/wallet/{u['id']}/lottery").json()
     af = client.get(f"/api/wallet/{u['id']}").json()["balance"]
     assert out["ok"] and abs((b4 - af) - 1.0) < 0.01         # stake taken exactly
+    assert out["ticket"]["status"] == "sealed" and "prize" not in out["ticket"]
+
+
+def test_ticket_lifecycle_sealed_until_draw_then_everyone_wins(client, monkeypatch):
+    u = _me(client)
+    _resolve_refund(client, u["id"])
+    # far-future draw: outcome must stay sealed and reveal must refuse
+    monkeypatch.setenv("RG_DRAW_DELAY_S", "3600")
+    t = client.post(f"/api/wallet/{u['id']}/lottery").json()["ticket"]
+    listed = next(x for x in client.get(f"/api/wallet/{u['id']}/tickets").json() if x["id"] == t["id"])
+    assert listed["status"] == "sealed" and "prize" not in listed
+    assert client.post(f"/api/wallet/{u['id']}/tickets/{t['id']}/reveal").status_code == 409
+    # instant draw: reveal pays out a prize — every ticket wins at least the ₹5 floor voucher
+    monkeypatch.setenv("RG_DRAW_DELAY_S", "0")
+    t2 = client.post(f"/api/wallet/{u['id']}/lottery").json()["ticket"]
+    r = client.post(f"/api/wallet/{u['id']}/tickets/{t2['id']}/reveal").json()
+    assert r["ok"] and r["prize"]["value"] >= 5.0 and r["prize"]["voucher_code"].startswith("KG-")
+    # idempotent: second reveal returns the same prize, no double-grant
+    r2 = client.post(f"/api/wallet/{u['id']}/tickets/{t2['id']}/reveal").json()
+    assert r2["prize"]["voucher_code"] == r["prize"]["voucher_code"]
+    # the voucher landed in the wallet as a scratchable coupon (platform-funded, no debit)
+    w = client.get(f"/api/wallet/{u['id']}").json()
+    assert any(c["code"] == r["prize"]["voucher_code"] for c in w["coupons"])
+    # unknown ticket 404s
+    assert client.post(f"/api/wallet/{u['id']}/tickets/tk_nope/reveal").status_code == 404
 
 
 # ----------------------------------------------------------- reps + assignment
